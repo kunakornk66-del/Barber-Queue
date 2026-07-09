@@ -1,0 +1,6 @@
+{
+  "name": "ระบบจองคิวร้านตัดผม",
+  "description": "ระบบลงคิว จัดการประวัติการจอง และตั้งค่าช่างทำผมสำหรับร้านตัดผมแบบใช้งานง่าย ไม่ซับซ้อน",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

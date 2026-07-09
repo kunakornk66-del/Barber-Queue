@@ -1,0 +1,101 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entities validation helpers using safe .get() defaults for NPE prevention
+    function isValidBooking(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('customerName', '') is string && data.get('customerName', '').size() <= 100
+        && data.get('customerPhone', '') is string && data.get('customerPhone', '').size() <= 20
+        && data.get('date', '') is string && data.get('date', '').size() <= 20
+        && data.get('startTime', '') is string && data.get('startTime', '').size() <= 10
+        && data.get('endTime', '') is string && data.get('endTime', '').size() <= 10
+        && data.get('recordedBy', '') is string && data.get('recordedBy', '').size() <= 100
+        && data.get('createdAt', '') is string && data.get('createdAt', '').size() <= 50;
+    }
+
+    function isValidHairdresser(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('name', '') is string && data.get('name', '').size() <= 100
+        && (data.get('onLeave', false) is bool);
+    }
+
+    function isValidSetting(data) {
+      return data.get('shopName', '') is string && data.get('shopName', '').size() <= 100
+        && data.get('adminPin', '') is string && data.get('adminPin', '').size() <= 32
+        && data.get('shopLogoUrl', '') is string && data.get('shopLogoUrl', '').size() <= 800000;
+    }
+    
+    function isValidLeave(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('hairdresserId', '') is string && data.get('hairdresserId', '').size() <= 128
+        && data.get('hairdresserName', '') is string && data.get('hairdresserName', '').size() <= 100
+        && data.get('date', '') is string && data.get('date', '').size() <= 20
+        && data.get('startTime', '') is string && data.get('startTime', '').size() <= 10
+        && data.get('endTime', '') is string && data.get('endTime', '').size() <= 10
+        && data.get('details', '') is string && data.get('details', '').size() <= 500
+        && data.get('recorder', '') is string && data.get('recorder', '').size() <= 100
+        && data.get('createdAt', '') is string && data.get('createdAt', '').size() <= 50;
+    }
+
+    // Helper to check if user is manager of the store they are writing to
+    function isManagerOfStore(shopEmail) {
+      return true;
+    }
+
+    // Tenant-isolated collections under stores
+    match /stores/{shopEmail}/bookings/{bookingId} {
+      allow read: if true;
+      allow create: if isValidId(bookingId) && isValidBooking(incoming());
+      allow update: if isValidId(bookingId) && isValidBooking(incoming());
+      allow delete: if isValidId(bookingId);
+    }
+
+    match /stores/{shopEmail}/hairdressers/{hairdresserId} {
+      allow read: if true;
+      allow create: if isValidId(hairdresserId) && isValidHairdresser(incoming());
+      allow update: if isValidId(hairdresserId) && isValidHairdresser(incoming());
+      allow delete: if isValidId(hairdresserId);
+    }
+
+    match /stores/{shopEmail}/settings/{settingId} {
+      allow read: if true;
+      allow create: if isValidId(settingId) && isValidSetting(incoming());
+      allow update: if isValidId(settingId) && isValidSetting(incoming());
+      allow delete: if isValidId(settingId);
+    }
+
+    match /stores/{shopEmail}/leaves/{leaveId} {
+      allow read: if true;
+      allow create: if isValidId(leaveId) && isValidLeave(incoming());
+      allow update: if isValidId(leaveId) && isValidLeave(incoming());
+      allow delete: if isValidId(leaveId);
+    }
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "Hairdresser": {
+      "title": "Hairdresser",
+      "description": "Represents a barber/hairdresser",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the hairdresser" },
+        "name": { "type": "string", "description": "Name of the hairdresser" },
+        "onLeave": { "type": "boolean", "description": "Whether the hairdresser is on leave/unavailable" }
+      },
+      "required": ["id", "name"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Represents a queue booking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the booking" },
+        "date": { "type": "string", "description": "Date of the booking YYYY-MM-DD" },
+        "startTime": { "type": "string", "description": "Start time in HH:MM" },
+        "endTime": { "type": "string", "description": "End time in HH:MM" },
+        "hairdresserId": { "type": "string", "description": "ID of the assigned hairdresser, null if not specified or empty" },
+        "customerName": { "type": "string", "description": "Name of the customer" },
+        "customerPhone": { "type": "string", "description": "Phone number of the customer" },
+        "remarks": { "type": "string", "description": "Optional notes or additional services" },
+        "recordedBy": { "type": "string", "description": "Name or ID of the recording hairdresser" },
+        "createdAt": { "type": "string", "description": "Timestamp of creation" }
+      },
+      "required": ["id", "date", "startTime", "endTime", "customerName", "customerPhone", "recordedBy", "createdAt"]
+    },
+    "Setting": {
+      "title": "Setting",
+      "description": "Represent shop general settings",
+      "type": "object",
+      "properties": {
+        "shopName": { "type": "string", "description": "Name of the barber shop" },
+        "shopLogoUrl": { "type": "string", "description": "Custom shop profile logo image URL or base64 data" }
+      },
+      "required": ["shopName"]
+    },
+    "LeaveRecord": {
+      "title": "LeaveRecord",
+      "description": "Represents a barber leave or queue closure schedule",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the leave record" },
+        "hairdresserId": { "type": "string", "description": "ID of the hairdresser on leave" },
+        "hairdresserName": { "type": "string", "description": "Name of the hairdresser on leave" },
+        "date": { "type": "string", "description": "Target date of leave YYYY-MM-DD" },
+        "startTime": { "type": "string", "description": "Start time of leave HH:MM" },
+        "endTime": { "type": "string", "description": "End time of leave HH:MM" },
+        "details": { "type": "string", "description": "Reason or details of closing queue" },
+        "recorder": { "type": "string", "description": "Name of the recorder" },
+        "createdAt": { "type": "string", "description": "Timestamp of record creation" }
+      },
+      "required": ["id", "hairdresserId", "hairdresserName", "date", "startTime", "endTime", "details", "recorder", "createdAt"]
+    }
+  },
+  "firestore": {
+    "stores/{shopEmail}/hairdressers/{hairdresserId}": {
+      "schema": "Hairdresser",
+      "description": "Hairdressers list for a specific shop"
+    },
+    "stores/{shopEmail}/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Bookings queue for a specific shop"
+    },
+    "stores/{shopEmail}/settings/{settingId}": {
+      "schema": "Setting",
+      "description": "System configuration document for a specific shop"
+    },
+    "stores/{shopEmail}/leaves/{leaveId}": {
+      "schema": "LeaveRecord",
+      "description": "Leave and queue closures schedule for hairdressers of a specific shop"
+    }
+  }
+}
