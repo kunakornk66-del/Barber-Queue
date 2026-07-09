@@ -4,7 +4,7 @@
  */
 
 import { useState, FormEvent } from 'react';
-import { Booking, Hairdresser } from '../types';
+import { Booking, Hairdresser, LeaveRecord } from '../types';
 import { Trash2, Phone, Calendar, Clock, User, UserCheck, Search, Sparkles, Pencil, X, Check, AlertCircle } from 'lucide-react';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
@@ -17,6 +17,7 @@ export const formatThaiTime = (timeStr: string) => {
 interface BookingListProps {
   bookings: Booking[];
   hairdressers: Hairdresser[];
+  leaves?: LeaveRecord[];
   onDeleteBooking: (id: string) => void;
   onUpdateBooking: (id: string, updatedData: Partial<Omit<Booking, 'id' | 'createdAt'>>) => void;
   jumpToTab: (index: number) => void;
@@ -27,6 +28,7 @@ interface BookingListProps {
 export default function BookingList({
   bookings,
   hairdressers,
+  leaves = [],
   onDeleteBooking,
   onUpdateBooking,
   jumpToTab,
@@ -56,7 +58,8 @@ export default function BookingList({
     setEditDate(booking.date);
     setEditStartTime(booking.startTime);
     setEditEndTime(booking.endTime);
-    setEditHairdresserId(booking.hairdresserId);
+    // If it was auto-assigned under "unspecified", show "anyone" as selected in the editor
+    setEditHairdresserId(booking.isAnyBarber ? null : booking.hairdresserId);
     setEditCustomerName(booking.customerName);
     setEditCustomerPhone(booking.customerPhone);
     setEditRemarks(booking.remarks || '');
@@ -106,8 +109,82 @@ export default function BookingList({
       return;
     }
 
-    // Check overlaps gently
-    if (editHairdresserId) {
+    let finalEditHairdresserId = editHairdresserId;
+    let editIsAnyBarber = false;
+
+    if (editHairdresserId === null) {
+      // Find all available hairdressers
+      const availableHairdressers = hairdressers.filter(hd => {
+        // 1. Must not be on leave
+        if (hd.onLeave) return false;
+
+        // 2. Must not have overlapping leave record
+        const hasLeave = leaves && leaves.some(l => {
+          return l.hairdresserId === hd.id &&
+                 l.date === editDate &&
+                 editStartTime < l.endTime && l.startTime < editEndTime;
+        });
+        if (hasLeave) return false;
+
+        // 3. Must not have overlapping booking
+        const hasOverlapBooking = bookings && bookings.some(booking => {
+          if (booking.id === editingBooking.id) return false; // skip self
+          if (booking.date !== editDate || booking.hairdresserId !== hd.id) {
+            return false;
+          }
+          const startA = editStartTime;
+          const endA = editEndTime;
+          const startB = booking.startTime;
+          const endB = booking.endTime;
+          return startA < endB && startB < endA;
+        });
+        if (hasOverlapBooking) return false;
+
+        return true;
+      });
+
+      if (availableHairdressers.length === 0) {
+        setEditError('⚠️ ขออภัย ช่างทุกคนติดคิวหรือลางานในช่วงเวลานี้ ไม่สามารถจองแบบไม่ระบุช่างได้');
+        return;
+      }
+
+      // Sort by booking count on this date (load balancing)
+      const bookingsCountMap = new Map<string, number>();
+      hairdressers.forEach(hd => bookingsCountMap.set(hd.id, 0));
+      if (bookings) {
+        bookings.forEach(b => {
+          if (b.id !== editingBooking.id && b.date === editDate && b.hairdresserId) {
+            bookingsCountMap.set(b.hairdresserId, (bookingsCountMap.get(b.hairdresserId) || 0) + 1);
+          }
+        });
+      }
+
+      availableHairdressers.sort((a, b) => {
+        const countA = bookingsCountMap.get(a.id) || 0;
+        const countB = bookingsCountMap.get(b.id) || 0;
+        return countA - countB;
+      });
+
+      finalEditHairdresserId = availableHairdressers[0].id;
+      editIsAnyBarber = true;
+    } else {
+      // Original validation for specific hairdresser
+      if (leaves && leaves.length > 0) {
+        const selectedHairdresser = hairdressers.find(h => h.id === editHairdresserId);
+        if (selectedHairdresser) {
+          const activeLeave = leaves.find(l => {
+            return l.hairdresserId === editHairdresserId &&
+                   l.date === editDate &&
+                   editStartTime < l.endTime && l.startTime < editEndTime;
+          });
+          if (activeLeave) {
+            setEditError(`ช่าง${selectedHairdresser.name} ติดปิดคิว/ลางาน ในช่วงเวลานี้ (${formatThaiTime(activeLeave.startTime)} - ${formatThaiTime(activeLeave.endTime)})`);
+            return;
+          }
+        }
+      }
+
+      // Check overlaps gently
       const overlapping = bookings.find(booking => {
         if (booking.id === editingBooking.id) return false; // skip self
         if (booking.date !== editDate || booking.hairdresserId !== editHairdresserId) return false;
@@ -132,11 +209,12 @@ export default function BookingList({
       date: editDate,
       startTime: editStartTime,
       endTime: editEndTime,
-      hairdresserId: editHairdresserId,
+      hairdresserId: finalEditHairdresserId,
       customerName: editCustomerName.trim(),
       customerPhone: editCustomerPhone.trim(),
       remarks: editRemarks.trim(),
-      recordedBy: editRecordedBy.trim() || editingBooking.recordedBy
+      recordedBy: editRecordedBy.trim() || editingBooking.recordedBy,
+      isAnyBarber: editIsAnyBarber
     });
 
     setEditingBooking(null);
@@ -398,6 +476,11 @@ export default function BookingList({
                                     <span className="text-xs font-bold text-stone-900 truncate" title={booking.customerName}>
                                       {booking.customerName}
                                     </span>
+                                    {booking.isAnyBarber && (
+                                      <span className="bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded text-[9px] font-bold shrink-0">
+                                        ไม่ระบุช่าง (ใครก็ได้)
+                                      </span>
+                                    )}
                                   </div>
 
                                   {/* Right side: Phone & Delete action */}

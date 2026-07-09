@@ -267,7 +267,7 @@ export default function LeaveManager({
                 type="date"
                 value={leaveDate}
                 onChange={(e) => setLeaveDate(e.target.value)}
-                className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-[#FAF9F6] font-medium"
+                className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-medium"
                 required
               />
             </div>
@@ -281,7 +281,7 @@ export default function LeaveManager({
                 <select
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-[#FAF9F6] font-[#533010] font-bold"
+                  className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white text-stone-800 font-bold"
                   required
                 >
                   {TIME_OPTIONS.map((t) => (
@@ -299,7 +299,7 @@ export default function LeaveManager({
                 <select
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-[#FAF9F6] font-[#533010] font-bold"
+                  className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white text-stone-800 font-bold"
                   required
                 >
                   {TIME_OPTIONS.map((t) => (
@@ -492,7 +492,7 @@ export default function LeaveManager({
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-bold text-stone-900 text-sm">ช่าง{leave.hairdresserName}</span>
-                        <div className="text-[10px] font-bold px-2 py-0.5 bg-[#FAF3EC] border border-[#F1DEC9] text-[#7A4612] rounded-full flex items-center gap-1">
+                        <div className="text-[10px] font-bold px-2 py-0.5 bg-brand-light border border-brand/20 text-brand-dark rounded-full flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           <span>{formatThaiTime(leave.startTime)} - {formatThaiTime(leave.endTime)}</span>
                         </div>

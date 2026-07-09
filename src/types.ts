@@ -20,6 +20,7 @@ export interface Booking {
   remarks: string;
   recordedBy: string; // ช่างผู้บันทึก (Hairdresser ID or Name)
   createdAt: string;  // ISO timestamp
+  isAnyBarber?: boolean; // แท็กบอกว่าจองแบบ "ไม่ระบุช่าง" แต่ระบบสุ่มช่างว่างให้
 }
 
 export interface LeaveRecord {

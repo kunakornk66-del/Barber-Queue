@@ -9,7 +9,8 @@ import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff } from 'lucide-react';
+import CustomerInsights from './components/CustomerInsights';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Sparkles } from 'lucide-react';
 
 // Import Firebase dependencies
 import { db, handleFirestoreError, OperationType } from './firebase';
@@ -786,7 +787,7 @@ export default function App() {
 
   if (!activeShopEmail) {
     return (
-      <div className="min-h-screen bg-[#F1EAE0] font-sans text-stone-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" id="portal-container">
+      <div className="min-h-screen bg-[#0B1325] font-sans text-stone-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" id="portal-container">
         {/* Decorative background stripes */}
         <div className="absolute top-0 left-0 right-0 h-2.5 bg-brand"></div>
         <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-brand/5 blur-3xl"></div>
@@ -1024,6 +1025,20 @@ export default function App() {
             )}
           </button>
 
+          {/* Tab 5: วิเคราะห์ลูกค้า (AI) */}
+          <button
+            onClick={() => setActiveTab(4)}
+            id="nav-tab-insights"
+            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+              activeTab === 4
+                ? 'bg-brand text-white shadow-md'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 shrink-0" />
+            <span>วิเคราะห์ลูกค้า (AI)</span>
+          </button>
+
           {/* Tab 4: ตั้งค่า */}
           <button
             onClick={() => setActiveTab(3)}
@@ -1065,6 +1080,7 @@ export default function App() {
             <BookingList
               bookings={bookings}
               hairdressers={hairdressers}
+              leaves={leaves}
               onDeleteBooking={handleDeleteBooking}
               onUpdateBooking={handleUpdateBooking}
               jumpToTab={setActiveTab}
@@ -1243,6 +1259,15 @@ export default function App() {
 
             </div>
           )
+        )}
+
+        {activeTab === 4 && (
+          <div>
+            <CustomerInsights
+              bookings={bookings}
+              hairdressers={hairdressers}
+            />
+          </div>
         )}
 
       </main>

@@ -5,7 +5,7 @@
 
 import { useState, useEffect, FormEvent } from 'react';
 import { Hairdresser, Booking, LeaveRecord } from '../types';
-import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X } from 'lucide-react';
+import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X, Filter, Plus, RefreshCw, Users, HelpCircle } from 'lucide-react';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
 export const formatThaiTime = (timeStr: string) => {
@@ -83,6 +83,82 @@ export default function BookingForm({
     existingBooking: Booking;
   } | null>(null);
 
+  // States & Helpers for "Overall Shop Queue Status"
+  const [timeFilter, setTimeFilter] = useState<'morning' | 'afternoon' | 'evening' | 'all'>('all');
+
+  const ALL_SLOTS = [
+    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
+    '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+    '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'
+  ];
+
+  const getEndTimeOfSlot = (startTimeStr: string) => {
+    const [h, m] = startTimeStr.split(':').map(Number);
+    let eh = h;
+    let em = m + 30;
+    if (em >= 60) {
+      eh += 1;
+      em -= 60;
+    }
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+  };
+
+  const formatThaiDate = (dateStr: string) => {
+    if (!dateStr) return '';
+    try {
+      const months = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      const [year, month, day] = dateStr.split('-');
+      const thaiYear = parseInt(year) + 543;
+      const thaiMonth = months[parseInt(month) - 1];
+      return `${parseInt(day)} ${thaiMonth} ${thaiYear}`;
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
+  const handleSelectSlot = (slotStart: string, hdId: string) => {
+    handleStartTimeChange(slotStart);
+    setSelectedHairdresserId(hdId);
+    
+    const formCard = document.getElementById('booking-form-card');
+    if (formCard) {
+      formCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Filter slots based on the selection
+  const filteredSlots = ALL_SLOTS.filter(slot => {
+    if (timeFilter === 'morning') return slot >= '09:00' && slot <= '12:30';
+    if (timeFilter === 'afternoon') return slot >= '13:00' && slot <= '16:30';
+    if (timeFilter === 'evening') return slot >= '17:00' && slot <= '20:30';
+    return true; // 'all'
+  });
+
+  // Analyze slot density
+  const getSlotDensity = (slotStart: string, slotEnd: string) => {
+    let activeBarbers = 0;
+    let bookedBarbers = 0;
+    
+    hairdressers.forEach(hd => {
+      const isLeave = hd.onLeave || leaves.some(l => l.hairdresserId === hd.id && l.date === date && slotStart < l.endTime && l.startTime < slotEnd);
+      if (!isLeave) {
+        activeBarbers++;
+        const hasBooking = bookings.some(b => b.hairdresserId === hd.id && b.date === date && slotStart < b.endTime && b.startTime < slotEnd);
+        if (hasBooking) {
+          bookedBarbers++;
+        }
+      }
+    });
+
+    if (activeBarbers === 0) return 'closed';
+    if (bookedBarbers === 0) return 'free';
+    if (bookedBarbers >= activeBarbers) return 'full';
+    return 'partial';
+  };
+
   // Auto update end-time when start-time changes (based on slotDuration config)
   const handleStartTimeChange = (newStart: string) => {
     setStartTime(newStart);
@@ -116,6 +192,58 @@ export default function BookingForm({
     }
   }, [hairdressers, activeRecorder, setActiveRecorder]);
 
+  // Helper to get unique list of past customers from all bookings
+  const getUniqueCustomers = () => {
+    const seen = new Set<string>();
+    const list: { name: string; phone: string; lastRemarks?: string }[] = [];
+    
+    // Sort bookings descending (newest bookings first)
+    const sortedBookings = [...bookings].sort((a, b) => b.date.localeCompare(a.date));
+    
+    sortedBookings.forEach(b => {
+      const name = b.customerName?.trim();
+      const phone = b.customerPhone?.trim();
+      if (name && name !== 'ลูกค้าหน้าร้าน (Walk-in)' && phone && phone !== '-') {
+        const cleanP = phone.replace(/\D/g, '');
+        const key = `${name.toLowerCase()}_${cleanP}`;
+        if (!seen.has(key) && cleanP.length >= 3) {
+          seen.add(key);
+          list.push({
+            name,
+            phone,
+            lastRemarks: b.remarks
+          });
+        }
+      }
+    });
+    return list;
+  };
+
+  // Find suggestions based on currently typed customerPhone
+  const cleanTypedPhone = customerPhone.replace(/\D/g, '');
+  const uniqueCustomers = getUniqueCustomers();
+  const suggestions = uniqueCustomers.filter(c => {
+    const cleanCPhone = c.phone.replace(/\D/g, '');
+    if (cleanTypedPhone.length > 0) {
+      return cleanCPhone.startsWith(cleanTypedPhone) || cleanCPhone.includes(cleanTypedPhone);
+    }
+    return false;
+  }).slice(0, 3);
+
+  // Auto-fill when exact phone number (>= 9 digits) is typed
+  useEffect(() => {
+    const cleanP = customerPhone.replace(/\D/g, '');
+    if (cleanP.length >= 9) {
+      const exactMatch = getUniqueCustomers().find(c => c.phone.replace(/\D/g, '') === cleanP);
+      if (exactMatch && (!customerName || customerName === 'ลูกค้าหน้าร้าน (Walk-in)')) {
+        setCustomerName(exactMatch.name);
+        if (exactMatch.lastRemarks && !remarks) {
+          setRemarks(exactMatch.lastRemarks);
+        }
+      }
+    }
+  }, [customerPhone]);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
@@ -134,51 +262,110 @@ export default function BookingForm({
       return;
     }
 
-    // Validate if the selected hairdresser has a partial leave/closure
-    if (selectedHairdresserId && leaves && leaves.length > 0) {
-      const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
-      if (selectedHairdresser) {
-        const activeLeave = leaves.find(l => {
-          return l.hairdresserId === selectedHairdresserId &&
+    let finalHairdresserId = selectedHairdresserId;
+    let isAnyBarberAssigned = false;
+
+    if (selectedHairdresserId === null) {
+      // Find all available hairdressers for date, startTime, and endTime
+      const availableHairdressers = hairdressers.filter(hd => {
+        // 1. Must not be on leave
+        if (hd.onLeave) return false;
+
+        // 2. Must not have overlapping leave record
+        const hasLeave = leaves && leaves.some(l => {
+          return l.hairdresserId === hd.id &&
                  l.date === date &&
                  startTime < l.endTime && l.startTime < endTime;
         });
-        if (activeLeave) {
-          setErrorMsg(`ช่าง${selectedHairdresser.name} ติดปิดคิว/ลางาน ในช่วงเวลานี้ (${formatThaiTime(activeLeave.startTime)} - ${formatThaiTime(activeLeave.endTime)}) รายละเอียด: ${activeLeave.details}`);
-          return;
-        }
-      }
-    }
+        if (hasLeave) return false;
 
-    // Validate overlapping bookings for the selected hairdresser
-    if (selectedHairdresserId && bookings && bookings.length > 0) {
-      const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
-      const hairdresserName = selectedHairdresser ? selectedHairdresser.name : 'ช่างที่เลือก';
+        // 3. Must not have overlapping booking
+        const hasOverlapBooking = bookings && bookings.some(booking => {
+          if (booking.date !== date || booking.hairdresserId !== hd.id) {
+            return false;
+          }
+          const startA = startTime;
+          const endA = endTime;
+          const startB = booking.startTime;
+          const endB = booking.endTime;
+          return startA < endB && startB < endA;
+        });
+        if (hasOverlapBooking) return false;
 
-      const overlappingBooking = bookings.find(booking => {
-        // Must be the same date and same hairdresser
-        if (booking.date !== date || booking.hairdresserId !== selectedHairdresserId) {
-          return false;
-        }
-
-        // Overlap check: startA < endB && startB < endA
-        const startA = startTime;
-        const endA = endTime;
-        const startB = booking.startTime;
-        const endB = booking.endTime;
-
-        return startA < endB && startB < endA;
+        return true;
       });
 
-      if (overlappingBooking) {
-        setOverlapModalData({
-          hairdresserName,
-          date,
-          startTime,
-          endTime,
-          existingBooking: overlappingBooking
-        });
+      if (availableHairdressers.length === 0) {
+        setErrorMsg('⚠️ ขออภัย ช่างทุกคนติดคิวหรือลางานในช่วงเวลานี้ ไม่สามารถจองแบบไม่ระบุช่างได้');
         return;
+      }
+
+      // Sort available hairdressers by booking count ascending to load balance
+      const bookingsCountMap = new Map<string, number>();
+      hairdressers.forEach(hd => bookingsCountMap.set(hd.id, 0));
+      if (bookings) {
+        bookings.forEach(b => {
+          if (b.date === date && b.hairdresserId) {
+            bookingsCountMap.set(b.hairdresserId, (bookingsCountMap.get(b.hairdresserId) || 0) + 1);
+          }
+        });
+      }
+
+      availableHairdressers.sort((a, b) => {
+        const countA = bookingsCountMap.get(a.id) || 0;
+        const countB = bookingsCountMap.get(b.id) || 0;
+        return countA - countB;
+      });
+
+      finalHairdresserId = availableHairdressers[0].id;
+      isAnyBarberAssigned = true;
+    } else {
+      // Validate if the selected hairdresser has a partial leave/closure
+      if (leaves && leaves.length > 0) {
+        const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
+        if (selectedHairdresser) {
+          const activeLeave = leaves.find(l => {
+            return l.hairdresserId === selectedHairdresserId &&
+                   l.date === date &&
+                   startTime < l.endTime && l.startTime < endTime;
+          });
+          if (activeLeave) {
+            setErrorMsg(`ช่าง${selectedHairdresser.name} ติดปิดคิว/ลางาน ในช่วงเวลานี้ (${formatThaiTime(activeLeave.startTime)} - ${formatThaiTime(activeLeave.endTime)}) รายละเอียด: ${activeLeave.details}`);
+            return;
+          }
+        }
+      }
+
+      // Validate overlapping bookings for the selected hairdresser
+      if (bookings && bookings.length > 0) {
+        const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
+        const hairdresserName = selectedHairdresser ? selectedHairdresser.name : 'ช่างที่เลือก';
+
+        const overlappingBooking = bookings.find(booking => {
+          // Must be the same date and same hairdresser
+          if (booking.date !== date || booking.hairdresserId !== selectedHairdresserId) {
+            return false;
+          }
+
+          // Overlap check: startA < endB && startB < endA
+          const startA = startTime;
+          const endA = endTime;
+          const startB = booking.startTime;
+          const endB = booking.endTime;
+
+          return startA < endB && startB < endA;
+        });
+
+        if (overlappingBooking) {
+          setOverlapModalData({
+            hairdresserName,
+            date,
+            startTime,
+            endTime,
+            existingBooking: overlappingBooking
+          });
+          return;
+        }
       }
     }
 
@@ -187,11 +374,12 @@ export default function BookingForm({
       date,
       startTime,
       endTime,
-      hairdresserId: selectedHairdresserId,
+      hairdresserId: finalHairdresserId,
       customerName: customerName.trim() || 'ลูกค้าหน้าร้าน (Walk-in)',
       customerPhone: customerPhone.trim() || '-',
       remarks: remarks.trim(),
-      recordedBy: activeRecorder
+      recordedBy: activeRecorder,
+      isAnyBarber: isAnyBarberAssigned
     });
 
     // Reset Form (except Date, times, hairdresser, and activeRecorder for easier continuation)
@@ -210,7 +398,11 @@ export default function BookingForm({
   };
 
   return (
-    <div className="max-w-xl mx-auto bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden" id="booking-form-card">
+    <div className="max-w-6xl mx-auto" id="booking-form-page">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        {/* คอลัมน์ซ้าย: ฟอร์มลงคิวจองตัดผม */}
+        <div className="lg:col-span-5 bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden" id="booking-form-card">
       {/* Header Banner */}
       <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
         <div>
@@ -452,7 +644,7 @@ export default function BookingForm({
             </div>
 
             {/* เบอร์ลูกค้า */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <label className="text-xs font-semibold text-stone-700 flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-brand" /> เบอร์โทรศัพท์ลูกค้า <span className="text-[10px] text-stone-400 font-normal">(ไม่บังคับ)</span>
               </label>
@@ -463,7 +655,43 @@ export default function BookingForm({
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all"
+                autoComplete="off"
               />
+
+              {/* Autocomplete suggestion drop-down */}
+              {customerPhone.replace(/\D/g, '').length >= 3 && suggestions.length > 0 && (
+                <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-brand/25 rounded-2xl shadow-xl p-2 space-y-1 animate-fade-in text-stone-800">
+                  <p className="text-[10px] text-stone-600 font-bold px-2 pb-1 border-b border-stone-100 flex items-center gap-1">
+                    ✨ ดึงข้อมูลจากประวัติเก่า (คลิกเพื่อกรอกอัตโนมัติ):
+                  </p>
+                  <div className="max-h-36 overflow-y-auto">
+                    {suggestions.map((s, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setCustomerName(s.name);
+                          setCustomerPhone(s.phone);
+                          if (s.lastRemarks) {
+                            setRemarks(s.lastRemarks);
+                          }
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-xl hover:bg-brand/10 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                      >
+                        <div className="space-y-0.5">
+                          <p className="font-bold text-stone-900">{s.name}</p>
+                          <p className="text-[10px] text-stone-500">📞 {s.phone}</p>
+                        </div>
+                        {s.lastRemarks && (
+                          <span className="text-[9px] bg-stone-100 px-1.5 py-0.5 rounded-md text-stone-600 truncate max-w-[120px]" title={s.lastRemarks}>
+                            ล่าสุด: {s.lastRemarks}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -571,6 +799,227 @@ export default function BookingForm({
           )}
         </button>
       </form>
+        </div>
+
+        {/* คอลัมน์ขวา: ตารางแสดงผล 'สถานะคิวรวม' ของร้าน */}
+        <div className="lg:col-span-7 bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden p-5 sm:p-6 space-y-4" id="shop-queue-status-card">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">📊</span>
+                <h3 className="text-lg font-serif font-bold text-stone-900">สถานะคิวรวมของร้าน</h3>
+              </div>
+              <p className="text-xs text-stone-500 mt-1 font-light">
+                ภาพรวมคิวจอง ประจำวันที่ <span className="font-bold text-brand">{formatThaiDate(date)}</span>
+              </p>
+            </div>
+            
+            {/* Quick stats badges */}
+            <div className="flex flex-wrap gap-1.5 text-[10px] sm:text-xs">
+              <span className="bg-stone-100 text-stone-700 px-2.5 py-1 rounded-full font-bold border border-stone-200/60 flex items-center gap-1">
+                📅 คิวจองวันนี้: {bookings.filter(b => b.date === date).length} รายการ
+              </span>
+              <span className="bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-full font-bold border border-emerald-100 flex items-center gap-1">
+                💇‍♂️ ช่างเวรวันนี้: {hairdressers.filter(h => !h.onLeave).length} คน
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Filter Bar */}
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-stone-600 font-semibold">
+              <Filter className="w-3.5 h-3.5 text-brand" /> ช่วงเวลา:
+            </div>
+            <div className="flex gap-1 bg-stone-50 p-1 rounded-xl border border-stone-100">
+              <button
+                type="button"
+                onClick={() => setTimeFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFilter === 'all'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                }`}
+              >
+                ทั้งหมด
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeFilter('morning')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFilter === 'morning'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                }`}
+              >
+                🌅 เช้า
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeFilter('afternoon')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFilter === 'afternoon'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                }`}
+              >
+                ☀️ บ่าย
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeFilter('evening')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  timeFilter === 'evening'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                }`}
+              >
+                🌙 ค่ำ
+              </button>
+            </div>
+          </div>
+
+          {/* Instructions */}
+          <div className="bg-brand-light/40 border border-brand/10 rounded-2xl p-3 flex gap-2.5 items-start">
+            <span className="text-sm">✨</span>
+            <div className="space-y-0.5">
+              <p className="text-xs font-bold text-stone-900">ระบบอำนวยความสะดวกการจอง:</p>
+              <p className="text-[11px] text-stone-600 leading-relaxed font-light">
+                คลิกที่ปุ่ม <span className="font-bold text-emerald-800">+ ว่างจอง</span> ในตาราง เพื่อเลือกเวลานั้นและชื่อช่างสำหรับฟอร์มฝั่งซ้ายโดยอัตโนมัติทันที
+              </p>
+            </div>
+          </div>
+
+          {/* Timetable/Grid wrapper */}
+          <div className="border border-stone-200/80 rounded-2xl overflow-hidden shadow-xs bg-stone-50/20" id="shop-queue-timeline-table">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed min-w-[500px]">
+                <thead>
+                  <tr className="bg-stone-earth text-white border-b border-brand/10">
+                    <th className="w-[120px] px-3 py-3 text-left text-xs font-serif font-bold tracking-wider">เวลา</th>
+                    {hairdressers.map(hd => (
+                      <th key={`hd-header-${hd.id}`} className="px-2 py-3 text-center text-xs font-serif font-bold tracking-wider truncate">
+                        ช่าง{hd.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-stone-100 bg-white">
+                  {filteredSlots.map(slotStart => {
+                    const slotEnd = getEndTimeOfSlot(slotStart);
+                    const density = getSlotDensity(slotStart, slotEnd);
+                    
+                    // Density dot color
+                    let densityDot = 'bg-emerald-500';
+                    let densityTitle = 'ช่างทุกคนว่างพร้อมให้บริการ';
+                    if (density === 'closed') {
+                      densityDot = 'bg-stone-300';
+                      densityTitle = 'ร้านปิด หรือไม่มีช่างคนใดเข้าเวรช่วงนี้';
+                    } else if (density === 'full') {
+                      densityDot = 'bg-red-500';
+                      densityTitle = 'คิวเต็มทุกช่าง ไม่สามารถลงจองเพิ่มได้';
+                    } else if (density === 'partial') {
+                      densityDot = 'bg-amber-500';
+                      densityTitle = 'คิวหนาแน่นบางส่วน ช่างบางท่านยังว่าง';
+                    }
+
+                    return (
+                      <tr key={`slot-${slotStart}`} className="hover:bg-stone-50/50 transition-colors">
+                        {/* Time cell */}
+                        <td className="px-3 py-2.5 font-mono text-xs text-stone-750 font-semibold border-r border-stone-100 flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${densityDot}`} title={densityTitle}></span>
+                          <span>{formatThaiTime(slotStart)} - {formatThaiTime(slotEnd)}</span>
+                        </td>
+
+                        {/* Barbers cells */}
+                        {hairdressers.map(hd => {
+                          const isOnGeneralLeave = !!hd.onLeave;
+                          const partialLeave = leaves?.find(l => l.hairdresserId === hd.id && l.date === date && slotStart < l.endTime && l.startTime < slotEnd);
+                          const activeBooking = bookings?.find(b => b.hairdresserId === hd.id && b.date === date && slotStart < b.endTime && b.startTime < slotEnd);
+                          const isCurrentSelection = (selectedHairdresserId === hd.id) && (startTime <= slotStart && slotStart < endTime);
+                          const isAnyoneSelectedActive = (selectedHairdresserId === null) && (startTime <= slotStart && slotStart < endTime);
+
+                          // State logic
+                          if (isOnGeneralLeave) {
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-stone-100 text-stone-400 text-[10px] font-bold line-through select-none" title="ช่างลางานตลอดวัน">
+                                💤 ลางาน
+                              </td>
+                            );
+                          }
+
+                          if (partialLeave) {
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-amber-50 text-amber-700 text-[9px] font-bold" title={`ปิดช่วงเวลา: ${partialLeave.startTime} - ${partialLeave.endTime}`}>
+                                🚫 ปิดคิว
+                              </td>
+                            );
+                          }
+
+                          if (activeBooking) {
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1 py-1 text-center bg-rose-50/85 text-rose-800 text-[10px] border border-rose-100/50" title={`มีคิวจอง: คุณ ${activeBooking.customerName} (${activeBooking.customerPhone || '-'})`}>
+                                <div className="truncate max-w-[100px] mx-auto font-bold text-rose-900">
+                                  👤 {activeBooking.customerName}
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          // Render available slot
+                          const isHighlighted = isCurrentSelection || (isAnyoneSelectedActive && !isOnGeneralLeave && !partialLeave);
+
+                          return (
+                            <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleSelectSlot(slotStart, hd.id)}
+                                className={`w-full py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 ${
+                                  isHighlighted
+                                    ? 'bg-brand text-white ring-2 ring-brand/35 shadow-xs animate-pulse scale-[1.02]'
+                                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100/85 border border-emerald-200/30'
+                                }`}
+                              >
+                                <span>{isHighlighted ? '✍️ กำลังลง' : '+ ว่างจอง'}</span>
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            
+            {/* Scroll Indicator helper for mobile screens */}
+            <div className="lg:hidden bg-stone-100 text-stone-500 py-1.5 text-[9px] text-center font-bold border-t border-stone-200/80">
+              📱 ปัดซ้าย-ขวา เพื่อดูตารางคิวของช่างท่านอื่นเพิ่มเติ่ม ↔️
+            </div>
+          </div>
+
+          {/* Color Key Indicators */}
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 justify-center text-[10px] text-stone-550 font-bold border-t border-stone-100 pt-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span>เขียว = ว่างทั้งร้าน</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span>ส้ม = หนาแน่นบางส่วน</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+              <span>แดง = เต็มทุกช่าง</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 bg-stone-100 border border-stone-200 rounded-sm"></span>
+              <span>เทา = ลา/ปิดคิว</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
 
       {/* Booking Overlap Collision Warning Pop-up Modal */}
       {overlapModalData && (
