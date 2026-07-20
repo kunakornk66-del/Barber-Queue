@@ -86,19 +86,27 @@ export default function BookingForm({
   // States & Helpers for "Overall Shop Queue Status"
   const [timeFilter, setTimeFilter] = useState<'morning' | 'afternoon' | 'evening' | 'all'>('all');
 
-  const ALL_SLOTS = [
-    '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30',
-    '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
-    '17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30'
-  ];
+  // Generate ALL_SLOTS dynamically based on slotDuration setting (09:00 to 21:00)
+  const ALL_SLOTS: string[] = [];
+  const startHour = 9;
+  const endHour = 21;
+  let currentMinutes = startHour * 60;
+  const endMinutesLimit = endHour * 60;
+  while (currentMinutes < endMinutesLimit) {
+    const hh = String(Math.floor(currentMinutes / 60)).padStart(2, '0');
+    const mm = String(currentMinutes % 60).padStart(2, '0');
+    ALL_SLOTS.push(`${hh}:${mm}`);
+    currentMinutes += slotDuration;
+  }
 
   const getEndTimeOfSlot = (startTimeStr: string) => {
     const [h, m] = startTimeStr.split(':').map(Number);
     let eh = h;
-    let em = m + 30;
+    let em = m + slotDuration;
     if (em >= 60) {
-      eh += 1;
-      em -= 60;
+      const extraHours = Math.floor(em / 60);
+      eh += extraHours;
+      em = em % 60;
     }
     return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
   };
@@ -131,9 +139,9 @@ export default function BookingForm({
 
   // Filter slots based on the selection
   const filteredSlots = ALL_SLOTS.filter(slot => {
-    if (timeFilter === 'morning') return slot >= '09:00' && slot <= '12:30';
-    if (timeFilter === 'afternoon') return slot >= '13:00' && slot <= '16:30';
-    if (timeFilter === 'evening') return slot >= '17:00' && slot <= '20:30';
+    if (timeFilter === 'morning') return slot >= '09:00' && slot < '13:00';
+    if (timeFilter === 'afternoon') return slot >= '13:00' && slot < '17:00';
+    if (timeFilter === 'evening') return slot >= '17:00' && slot < '21:00';
     return true; // 'all'
   });
 
@@ -936,8 +944,6 @@ export default function BookingForm({
                           const isOnGeneralLeave = !!hd.onLeave;
                           const partialLeave = leaves?.find(l => l.hairdresserId === hd.id && l.date === date && slotStart < l.endTime && l.startTime < slotEnd);
                           const activeBooking = bookings?.find(b => b.hairdresserId === hd.id && b.date === date && slotStart < b.endTime && b.startTime < slotEnd);
-                          const isCurrentSelection = (selectedHairdresserId === hd.id) && (startTime <= slotStart && slotStart < endTime);
-                          const isAnyoneSelectedActive = (selectedHairdresserId === null) && (startTime <= slotStart && slotStart < endTime);
 
                           // State logic
                           if (isOnGeneralLeave) {
@@ -967,20 +973,14 @@ export default function BookingForm({
                           }
 
                           // Render available slot
-                          const isHighlighted = isCurrentSelection || (isAnyoneSelectedActive && !isOnGeneralLeave && !partialLeave);
-
                           return (
                             <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center">
                               <button
                                 type="button"
                                 onClick={() => handleSelectSlot(slotStart, hd.id)}
-                                className={`w-full py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 ${
-                                  isHighlighted
-                                    ? 'bg-brand text-white ring-2 ring-brand/35 shadow-xs animate-pulse scale-[1.02]'
-                                    : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100/85 border border-emerald-200/30'
-                                }`}
+                                className="w-full py-1.5 px-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center justify-center gap-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100/85 border border-emerald-200/30"
                               >
-                                <span>{isHighlighted ? '✍️ กำลังลง' : '+ ว่างจอง'}</span>
+                                <span>+ ว่างจอง</span>
                               </button>
                             </td>
                           );
