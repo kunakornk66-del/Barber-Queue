@@ -19,7 +19,8 @@ import {
   onSnapshot, 
   doc, 
   setDoc, 
-  deleteDoc 
+  deleteDoc,
+  updateDoc
 } from 'firebase/firestore';
 
 // Fallback seed initial hairdressers if Firestore is totally empty
@@ -39,6 +40,7 @@ export default function App() {
   const [shopName, setShopName] = useState<string>('BARBER PRO');
   const [shopLogoUrl, setShopLogoUrl] = useState<string>('');
   const [slotDuration, setSlotDuration] = useState<number>(30); // Default to 30 minutes
+  const [shopHolidays, setShopHolidays] = useState<number[]>([]); // Sunday = 0, Monday = 1, etc.
 
   // Dynamic set activeShopEmail with multiple robust URL parser fallbacks (query, hash, and pathnames)
   const [activeShopEmail, setActiveShopEmail] = useState<string | null>(() => {
@@ -212,6 +214,7 @@ export default function App() {
         if (data.adminPin) setAdminPin(data.adminPin);
         if (data.shopLogoUrl) setShopLogoUrl(data.shopLogoUrl);
         if (data.slotDuration) setSlotDuration(Number(data.slotDuration));
+        if (data.shopHolidays !== undefined) setShopHolidays(data.shopHolidays || []);
       } catch (e) {
         console.warn("Error parsing local settings backup:", e);
       }
@@ -220,6 +223,7 @@ export default function App() {
       setAdminPin('1234');
       setShopLogoUrl('');
       setSlotDuration(30);
+      setShopHolidays([]);
     }
 
     const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
@@ -245,6 +249,11 @@ export default function App() {
           } else {
             setSlotDuration(30);
           }
+          if (data.shopHolidays !== undefined) {
+            setShopHolidays(data.shopHolidays || []);
+          } else {
+            setShopHolidays([]);
+          }
           localStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
@@ -254,6 +263,7 @@ export default function App() {
           setAdminPin('1234');
           setShopLogoUrl('');
           setSlotDuration(30);
+          setShopHolidays([]);
         }
       }
     }, (error) => {
@@ -456,6 +466,70 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [activeShopEmail]);
+
+  // 6. Reset hairdresser busy status on new day transition or startup if stale
+  useEffect(() => {
+    if (!activeShopEmail || hairdressers.length === 0) return;
+
+    const checkAndResetBusyStatus = async () => {
+      const todayStr = getTodayDateString();
+      const storedDate = localStorage.getItem(`last_checked_date_${activeShopEmail}`);
+      const isNewDay = storedDate && storedDate !== todayStr;
+      const now = new Date();
+
+      if (isNewDay) {
+        console.log("New day detected, resetting all hairdresser busy states...");
+        for (const hd of hairdressers) {
+          if (hd.busyStart || hd.busyUntil) {
+            try {
+              const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hd.id);
+              await updateDoc(hdRef, {
+                busyStart: null,
+                busyUntil: null
+              });
+            } catch (e) {
+              console.error(`Error resetting busy state for hairdresser ${hd.id}:`, e);
+            }
+          }
+        }
+        localStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
+      } else {
+        // Check individual hairdressers for stale busy status (older than 60 mins or different day)
+        for (const hd of hairdressers) {
+          if (!hd.busyStart) continue;
+          
+          const busyDateStr = hd.busyStart.split('T')[0];
+          const elapsedMs = now.getTime() - new Date(hd.busyStart).getTime();
+          const isStale = busyDateStr < todayStr || elapsedMs >= 60 * 60 * 1000;
+
+          if (isStale) {
+            console.log(`Stale busy status detected for ${hd.name}, resetting...`);
+            try {
+              const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hd.id);
+              await updateDoc(hdRef, {
+                busyStart: null,
+                busyUntil: null
+              });
+            } catch (e) {
+              console.error(`Error resetting busy state for hairdresser ${hd.id}:`, e);
+            }
+          }
+        }
+        
+        if (!storedDate) {
+          localStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
+        }
+      }
+    };
+
+    // Run immediately on load/change
+    checkAndResetBusyStatus();
+
+    // Set up 30-second interval check for day transition and 60-min timeouts
+    const intervalId = setInterval(checkAndResetBusyStatus, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [activeShopEmail, hairdressers]);
 
   const handleUpdateAdminPin = async (newPin: string) => {
     if (!activeShopEmail) return;
@@ -785,6 +859,30 @@ export default function App() {
     }
   };
 
+  const handleUpdateShopHolidays = async (holidays: number[]) => {
+    if (!activeShopEmail) return;
+    if (!isManager) {
+      alert("⚠️ สิทธิ์ปฏิเสธ: คุณไม่มีสิทธิ์เข้าตั้งค่าวันหยุดร้านของสาขานี้");
+      return;
+    }
+
+    setShopHolidays(holidays);
+    const localKey = `backup_settings_${activeShopEmail}`;
+    try {
+      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      data.shopHolidays = holidays;
+      localStorage.setItem(localKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Local storage write skipped:", e);
+    }
+
+    try {
+      await setDoc(doc(db, 'stores', activeShopEmail, 'settings', 'config'), { shopHolidays: holidays }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/settings/config`, false);
+    }
+  };
+
   if (!activeShopEmail) {
     return (
       <div className="min-h-screen bg-[#0B1325] font-sans text-stone-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" id="portal-container">
@@ -1071,6 +1169,8 @@ export default function App() {
               jumpToTab={setActiveTab}
               currentUser={currentUser}
               slotDuration={slotDuration}
+              activeShopEmail={activeShopEmail}
+              shopHolidays={shopHolidays}
             />
           </div>
         )}
@@ -1117,6 +1217,8 @@ export default function App() {
               onUpdateShopLogo={handleUpdateShopLogo}
               slotDuration={slotDuration}
               onUpdateSlotDuration={handleUpdateSlotDuration}
+              shopHolidays={shopHolidays}
+              onUpdateShopHolidays={handleUpdateShopHolidays}
             />
           ) : (
             <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-stone-200 shadow-sm text-center space-y-6" id="settings-pin-lock-container">

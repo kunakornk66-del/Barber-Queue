@@ -140,6 +140,23 @@ export default function BookingList({
         });
         if (hasOverlapBooking) return false;
 
+        // 4. Must not be currently busy at the physical shop
+        if (hd.busyUntil && hd.busyStart && editDate === getTodayDateString()) {
+          const now = new Date();
+          const busyUntilDT = new Date(hd.busyUntil);
+          if (busyUntilDT > now) {
+            const busyStartDT = new Date(hd.busyStart);
+            const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+            const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+
+            const reqStartDT = new Date(`${editDate}T${editStartTime}:00`);
+            const reqEndDT = new Date(`${editDate}T${editEndTime}:00`);
+            if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+              return false;
+            }
+          }
+        }
+
         return true;
       });
 
@@ -169,8 +186,25 @@ export default function BookingList({
       editIsAnyBarber = true;
     } else {
       // Original validation for specific hairdresser
+      const selectedHairdresser = hairdressers.find(h => h.id === editHairdresserId);
+      if (selectedHairdresser && selectedHairdresser.busyUntil && selectedHairdresser.busyStart && editDate === getTodayDateString()) {
+        const now = new Date();
+        const busyUntilDT = new Date(selectedHairdresser.busyUntil);
+        if (busyUntilDT > now) {
+          const busyStartDT = new Date(selectedHairdresser.busyStart);
+          const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+          const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+
+          const reqStartDT = new Date(`${editDate}T${editStartTime}:00`);
+          const reqEndDT = new Date(`${editDate}T${editEndTime}:00`);
+          if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+            setEditError(`⚠️ ช่าง${selectedHairdresser.name} กำลังติดให้บริการตัดผมหน้าร้านอยู่ ณ ขณะนี้ และยังไม่เสร็จงาน จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+            return;
+          }
+        }
+      }
+
       if (leaves && leaves.length > 0) {
-        const selectedHairdresser = hairdressers.find(h => h.id === editHairdresserId);
         if (selectedHairdresser) {
           const activeLeave = leaves.find(l => {
             return l.hairdresserId === editHairdresserId &&
@@ -397,6 +431,47 @@ export default function BookingList({
         </div>
       </div>
 
+      {/* Live Barber Status Strip */}
+      {(hairdressers.some(h => h.busyUntil && h.busyStart && new Date(h.busyUntil) > new Date()) ||
+        hairdressers.some(h => h.breakUntil && h.breakStart && new Date(h.breakUntil) > new Date())) && (
+        <div className="bg-stone-50/80 border border-stone-200 rounded-3xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs" id="live-barbers-busy-banner">
+          <div className="flex gap-2.5 items-start">
+            <span className="text-base">💈</span>
+            <div>
+              <h4 className="text-xs font-bold text-stone-800 font-sans flex items-center gap-1.5">
+                <span>อัปเดตสถานะของช่างในขณะนี้</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+              </h4>
+              <p className="text-[10px] text-stone-500 mt-0.5">
+                ช่างที่มีสถานะ "กำลังให้บริการ" หรือ "พักเบรก" จะไม่ถูกนับเป็นช่างที่ว่างรับคิวจอง
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {hairdressers.filter(h => h.busyUntil && h.busyStart && new Date(h.busyUntil) > new Date()).map(hd => {
+              const d = new Date(hd.busyStart!);
+              const hh = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              return (
+                <span key={`busy-list-${hd.id}`} className="inline-flex items-center gap-1 bg-amber-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-xl shadow-xs border border-amber-600/15 animate-pulse">
+                  ช่าง{hd.name}: กำลังให้บริการ ({hh}.{mm}น.)
+                </span>
+              );
+            })}
+            {hairdressers.filter(h => h.breakUntil && h.breakStart && new Date(h.breakUntil) > new Date()).map(hd => {
+              const d = new Date(hd.breakStart!);
+              const hh = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              return (
+                <span key={`break-list-${hd.id}`} className="inline-flex items-center gap-1 bg-sky-500 text-white font-bold text-[10px] px-2.5 py-1 rounded-xl shadow-xs border border-sky-600/15 animate-pulse">
+                  ช่าง{hd.name}: พักเบรก ({hh}.{mm}น.)
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Grid of booking cards grouped by date & hairdresser */}
       <div className="space-y-6" id="booking-cards-container">
         {groupedBookings.length > 0 ? (
@@ -441,9 +516,39 @@ export default function BookingList({
                               <UserCheck className={`w-4 h-4 ${isNoSpecifiedHairdresser ? 'text-stone-400' : 'text-brand'}`} />
                             </div>
                             <div className="min-w-0">
-                              <h3 className="font-serif font-bold text-stone-900 text-xs sm:text-sm truncate">
-                                {hdGroup.hairdresserName}
-                              </h3>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <h3 className="font-serif font-bold text-stone-900 text-xs sm:text-sm truncate">
+                                  {hdGroup.hairdresserName}
+                                </h3>
+                                {!isNoSpecifiedHairdresser && (() => {
+                                  const hdObj = hairdressers.find(h => h.id === hdGroup.hairdresserId);
+                                  const isBusy = hdObj?.busyUntil && hdObj?.busyStart && new Date(hdObj.busyUntil) > new Date();
+                                  const isBreak = hdObj?.breakUntil && hdObj?.breakStart && new Date(hdObj.breakUntil) > new Date();
+                                  if (isBusy) {
+                                    const dStart = new Date(hdObj.busyStart!);
+                                    const hh = String(dStart.getHours()).padStart(2, '0');
+                                    const mm = String(dStart.getMinutes()).padStart(2, '0');
+                                    return (
+                                      <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200/40 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0 animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
+                                        กำลังให้บริการ ({hh}.{mm}น.)
+                                      </span>
+                                    );
+                                  }
+                                  if (isBreak) {
+                                    const dStart = new Date(hdObj.breakStart!);
+                                    const hh = String(dStart.getHours()).padStart(2, '0');
+                                    const mm = String(dStart.getMinutes()).padStart(2, '0');
+                                    return (
+                                      <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200/40 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0 animate-pulse">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                                        พักเบรก ({hh}.{mm}น.)
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
                               <p className="text-[9px] text-stone-400 font-light truncate">
                                 {isNoSpecifiedHairdresser ? 'คิวช่างคนไหนก็ได้ (ใครว่างรับ)' : 'ช่างประจำสาขา'}
                               </p>

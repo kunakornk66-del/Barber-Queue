@@ -47,6 +47,8 @@ interface SettingsProps {
   onUpdateShopLogo: (logoUrl: string) => void;
   slotDuration: number;
   onUpdateSlotDuration: (duration: number) => void;
+  shopHolidays: number[];
+  onUpdateShopHolidays: (holidays: number[]) => void;
 }
 
 export default function Settings({
@@ -61,7 +63,9 @@ export default function Settings({
   shopLogoUrl,
   onUpdateShopLogo,
   slotDuration,
-  onUpdateSlotDuration
+  onUpdateSlotDuration,
+  shopHolidays,
+  onUpdateShopHolidays
 }: SettingsProps) {
   const [newHairdresserName, setNewHairdresserName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -87,6 +91,39 @@ export default function Settings({
   // Slot duration settings states
   const [tempSlotDuration, setTempSlotDuration] = useState<number>(slotDuration || 30);
   const [slotSuccess, setSlotSuccess] = useState(false);
+
+  // Shop weekly holidays settings states
+  const [holidaysSuccess, setHolidaysSuccess] = useState(false);
+
+  const DAYS_OF_WEEK = [
+    { value: 0, label: 'วันอาทิตย์' },
+    { value: 1, label: 'วันจันทร์' },
+    { value: 2, label: 'วันอังคาร' },
+    { value: 3, label: 'วันพุธ' },
+    { value: 4, label: 'วันพฤหัสบดี' },
+    { value: 5, label: 'วันศุกร์' },
+    { value: 6, label: 'วันเสาร์' }
+  ];
+
+  const handleToggleHoliday = (dayValue: number) => {
+    let updated: number[];
+    if (shopHolidays.includes(dayValue)) {
+      updated = shopHolidays.filter(d => d !== dayValue);
+    } else {
+      updated = [...shopHolidays, dayValue].sort();
+    }
+    onUpdateShopHolidays(updated);
+    setHolidaysSuccess(true);
+    const timer = setTimeout(() => setHolidaysSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  };
+
+  const handleClearHolidays = () => {
+    onUpdateShopHolidays([]);
+    setHolidaysSuccess(true);
+    const timer = setTimeout(() => setHolidaysSuccess(false), 3000);
+    return () => clearTimeout(timer);
+  };
 
   // Sync temperature slot duration when loaded from remote Firestore
   useEffect(() => {
@@ -371,12 +408,8 @@ export default function Settings({
                 }}
                 className="px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
               >
-                <option value={15}>15 นาที</option>
                 <option value={30}>30 นาที (ค่าเริ่มต้น)</option>
-                <option value={45}>45 นาที</option>
                 <option value={60}>1 ชั่วโมง (60 นาที)</option>
-                <option value={90}>1 ชั่วโมง 30 นาที</option>
-                <option value={120}>2 ชั่วโมง</option>
               </select>
             </div>
           </div>
@@ -566,6 +599,69 @@ export default function Settings({
                   </p>
                 </form>
               )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Shop Holiday Configuration Card */}
+      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-holiday-settings-card">
+        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+          <div>
+            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+              📅 กำหนดวันหยุดประจำสัปดาห์ของร้าน
+            </h2>
+            <p className="text-stone-400 text-xs mt-1 font-light">
+              กำหนดวันหยุดของร้านตัดผม โดยหากถึงวันดังกล่าว ระบบจะปิดไม่ให้รับคิวจองอัตโนมัติทั้งสาขา
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-6">
+          {holidaysSuccess && (
+            <div className="bg-[#FAF6F0] border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="holiday-save-success-msg">
+              <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+              <span>บันทึกข้อมูลวันหยุดร้านสำเร็จแล้ว!</span>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleClearHolidays}
+                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${
+                  shopHolidays.length === 0
+                    ? 'bg-brand text-white border-brand shadow-sm'
+                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                }`}
+              >
+                🚫 ไม่มีวันหยุด (เปิดให้บริการทุกวัน)
+              </button>
+            </div>
+
+            <div className="h-px bg-stone-100 my-4"></div>
+
+            <p className="text-xs font-bold text-stone-700">เลือกวันหยุดประจำสัปดาห์ของร้าน (สามารถเลือกได้มากกว่า 1 วัน):</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {DAYS_OF_WEEK.map((day) => {
+                const isSelected = shopHolidays.includes(day.value);
+                return (
+                  <button
+                    key={day.value}
+                    type="button"
+                    onClick={() => handleToggleHoliday(day.value)}
+                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? 'bg-red-50 border-red-300 text-red-700 shadow-xs ring-2 ring-red-100'
+                        : 'bg-stone-50/50 hover:bg-stone-50 text-stone-850 border-stone-200'
+                    }`}
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-red-600 animate-pulse' : 'bg-stone-300'}`}></span>
+                    {day.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

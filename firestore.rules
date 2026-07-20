@@ -43,7 +43,9 @@ service cloud.firestore {
     function isValidHairdresser(data) {
       return data.get('id', '') is string && data.get('id', '').size() <= 128
         && data.get('name', '') is string && data.get('name', '').size() <= 100
-        && (data.get('onLeave', false) is bool);
+        && (data.get('onLeave', false) is bool)
+        && (data.get('busyStart', '') is string || data.get('busyStart', null) == null)
+        && (data.get('busyUntil', '') is string || data.get('busyUntil', null) == null);
     }
 
     function isValidSetting(data) {

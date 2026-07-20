@@ -7,7 +7,9 @@
       "properties": {
         "id": { "type": "string", "description": "Unique ID of the hairdresser" },
         "name": { "type": "string", "description": "Name of the hairdresser" },
-        "onLeave": { "type": "boolean", "description": "Whether the hairdresser is on leave/unavailable" }
+        "onLeave": { "type": "boolean", "description": "Whether the hairdresser is on leave/unavailable" },
+        "busyStart": { "type": "string", "description": "ISO string representing when they started serving" },
+        "busyUntil": { "type": "string", "description": "ISO string representing when they will be free" }
       },
       "required": ["id", "name"]
     },

@@ -6,6 +6,8 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Hairdresser, Booking, LeaveRecord } from '../types';
 import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X, Filter, Plus, RefreshCw, Users, HelpCircle } from 'lucide-react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType } from '../firebase';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
 export const formatThaiTime = (timeStr: string) => {
@@ -14,19 +16,33 @@ export const formatThaiTime = (timeStr: string) => {
   return cleanTime.replace(':', '.') + 'น.';
 };
 
-// Generate 15-minute intervals for beautiful select dropdown
-export const generateTimeOptions = () => {
+export const formatBusyTime = (isoStr: string) => {
+  try {
+    const d = new Date(isoStr);
+    const h = String(d.getHours()).padStart(2, '0');
+    const m = String(d.getMinutes()).padStart(2, '0');
+    return `${h}:${m}`;
+  } catch (e) {
+    return '';
+  }
+};
+
+// Generate intervals in 30-minute steps for maximum scheduling flexibility
+export const generateTimeOptions = (slotDuration: number = 30) => {
   const options: string[] = [];
+  // Always use 30 minute steps to allow booking at any half-hour interval (e.g. 17:30)
   for (let hour = 0; hour < 24; hour++) {
-    for (let min of ['00', '15', '30', '45']) {
+    const minutes = [0, 30];
+    for (let min of minutes) {
       const hh = String(hour).padStart(2, '0');
-      options.push(`${hh}:${min}`);
+      const mm = String(min).padStart(2, '0');
+      options.push(`${hh}:${mm}`);
     }
   }
   return options;
 };
 
-const TIME_OPTIONS = generateTimeOptions();
+const TIME_OPTIONS_DEFAULT = generateTimeOptions(30);
 
 interface BookingFormProps {
   hairdressers: Hairdresser[];
@@ -38,6 +54,8 @@ interface BookingFormProps {
   jumpToTab: (index: number) => void;
   currentUser?: any;
   slotDuration?: number;
+  activeShopEmail: string | null;
+  shopHolidays?: number[];
 }
 
 export default function BookingForm({
@@ -49,8 +67,12 @@ export default function BookingForm({
   setActiveRecorder,
   jumpToTab,
   currentUser,
-  slotDuration = 30
+  slotDuration = 30,
+  activeShopEmail,
+  shopHolidays = []
 }: BookingFormProps) {
+  const TIME_OPTIONS = generateTimeOptions(slotDuration);
+
   // Helper to get local date string YYYY-MM-DD
   const getTodayDateString = () => {
     const d = new Date();
@@ -60,6 +82,111 @@ export default function BookingForm({
     return `${year}-${month}-${day}`;
   };
 
+  const getNearestPrevSlotDate = (dateObj: Date): Date => {
+    const rounded = new Date(dateObj);
+    const minutes = rounded.getMinutes();
+    if (minutes >= 30) {
+      rounded.setMinutes(30, 0, 0);
+    } else {
+      rounded.setMinutes(0, 0, 0);
+    }
+    return rounded;
+  };
+
+  const checkIsBusySlot = (hd: Hairdresser, slotStartStr: string, slotEndStr: string) => {
+    if (!hd.busyUntil || !hd.busyStart) return false;
+    const todayStr = getTodayDateString();
+    if (date !== todayStr) return false; // Only applies to today's schedule
+
+    const now = new Date();
+    const busyUntilDate = new Date(hd.busyUntil);
+    if (busyUntilDate <= now) return false; // Busy time has already passed
+
+    const slotStartDT = new Date(`${date}T${slotStartStr}:00`);
+    const slotEndDT = new Date(`${date}T${slotEndStr}:00`);
+    
+    const busyStartDT = new Date(hd.busyStart);
+    const isFarFuture = busyUntilDate.getFullYear() >= 2030;
+    const effectiveEndDT = isFarFuture ? now : busyUntilDate;
+
+    return slotStartDT < effectiveEndDT && busyStartDT < slotEndDT;
+  };
+
+  const checkIsBreakSlot = (hd: Hairdresser, slotStartStr: string, slotEndStr: string) => {
+    if (!hd.breakUntil || !hd.breakStart) return false;
+    const todayStr = getTodayDateString();
+    if (date !== todayStr) return false; // Only applies to today's schedule
+
+    const now = new Date();
+    const breakUntilDate = new Date(hd.breakUntil);
+    if (breakUntilDate <= now) return false; // Break time has already passed
+
+    const slotStartDT = new Date(`${date}T${slotStartStr}:00`);
+    const slotEndDT = new Date(`${date}T${slotEndStr}:00`);
+    
+    const breakStartDT = new Date(hd.breakStart);
+    const isFarFuture = breakUntilDate.getFullYear() >= 2030;
+    const effectiveEndDT = isFarFuture ? now : breakUntilDate;
+
+    return slotStartDT < effectiveEndDT && breakStartDT < slotEndDT;
+  };
+
+  const handleToggleBusy = async (hairdresserId: string, setBusy: boolean, durationMinutes: number = 30) => {
+    if (!activeShopEmail) return;
+    try {
+      const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
+      if (setBusy) {
+        const now = new Date();
+        const nearestPrev = getNearestPrevSlotDate(now);
+        const busyStart = nearestPrev.toISOString();
+        // Set busy status for 60 minutes maximum (will auto-reset after 60 mins if not cleared manually)
+        const busyUntil = new Date(nearestPrev.getTime() + 60 * 60 * 1000).toISOString();
+        await updateDoc(hairdresserRef, {
+          busyStart,
+          busyUntil,
+          breakStart: null,
+          breakUntil: null
+        });
+      } else {
+        // Clear busy status
+        await updateDoc(hairdresserRef, {
+          busyStart: null,
+          busyUntil: null
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/hairdressers/${hairdresserId}`, false);
+    }
+  };
+
+  const handleToggleBreak = async (hairdresserId: string, setBreak: boolean) => {
+    if (!activeShopEmail) return;
+    try {
+      const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
+      if (setBreak) {
+        const now = new Date();
+        const nearestPrev = getNearestPrevSlotDate(now);
+        const breakStart = nearestPrev.toISOString();
+        // Set break status for 30 minutes maximum (will auto-reset after 30 mins if not cleared manually)
+        const breakUntil = new Date(nearestPrev.getTime() + 30 * 60 * 1000).toISOString();
+        await updateDoc(hairdresserRef, {
+          breakStart,
+          breakUntil,
+          busyStart: null,
+          busyUntil: null
+        });
+      } else {
+        // Clear break status
+        await updateDoc(hairdresserRef, {
+          breakStart: null,
+          breakUntil: null
+        });
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/hairdressers/${hairdresserId}`, false);
+    }
+  };
+
   // State fields
   const [date, setDate] = useState(getTodayDateString());
   const [startTime, setStartTime] = useState('10:00');
@@ -67,10 +194,44 @@ export default function BookingForm({
   
   // selectedHairdresserId: null represents "ไม่ระบุช่าง"
   const [selectedHairdresserId, setSelectedHairdresserId] = useState<string | null>(null);
+
+  // Check if selected date is a shop holiday
+  const isShopHolidaySelected = () => {
+    if (!date) return false;
+    // getDay() returns 0 for Sunday, 1 for Monday, etc.
+    const selectedDay = new Date(date).getDay();
+    return shopHolidays.includes(selectedDay);
+  };
+
+  const getSelectedDateThaiDayName = () => {
+    if (!date) return '';
+    const selectedDay = new Date(date).getDay();
+    const DAYS_THAI = ['วันอาทิตย์', 'วันจันทร์', 'วันอังคาร', 'วันพุธ', 'วันพฤหัสบดี', 'วันศุกร์', 'วันเสาร์'];
+    return DAYS_THAI[selectedDay];
+  };
   
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [remarks, setRemarks] = useState('');
+
+  // Auto-sync endTime when slotDuration changes
+  useEffect(() => {
+    const [hours, minutes] = startTime.split(':').map(Number);
+    if (!isNaN(hours) && !isNaN(minutes)) {
+      let endHours = hours;
+      let endMinutes = minutes + slotDuration;
+      if (endMinutes >= 60) {
+        const extraHours = Math.floor(endMinutes / 60);
+        endHours += extraHours;
+        endMinutes = endMinutes % 60;
+      }
+      if (endHours >= 24) {
+        endHours = 23;
+        endMinutes = 59;
+      }
+      setEndTime(`${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`);
+    }
+  }, [slotDuration]);
   
   // Validation and UX Feedback
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -86,7 +247,7 @@ export default function BookingForm({
   // States & Helpers for "Overall Shop Queue Status"
   const [timeFilter, setTimeFilter] = useState<'morning' | 'afternoon' | 'evening' | 'all'>('all');
 
-  // Generate ALL_SLOTS dynamically based on slotDuration setting (09:00 to 21:00)
+  // Generate ALL_SLOTS dynamically with 30-minute resolution for maximum booking flexibility (09:00 to 21:00)
   const ALL_SLOTS: string[] = [];
   const startHour = 9;
   const endHour = 21;
@@ -96,7 +257,7 @@ export default function BookingForm({
     const hh = String(Math.floor(currentMinutes / 60)).padStart(2, '0');
     const mm = String(currentMinutes % 60).padStart(2, '0');
     ALL_SLOTS.push(`${hh}:${mm}`);
-    currentMinutes += slotDuration;
+    currentMinutes += 30; // Always 30-minute increments for precise booking starts
   }
 
   const getEndTimeOfSlot = (startTimeStr: string) => {
@@ -155,7 +316,9 @@ export default function BookingForm({
       if (!isLeave) {
         activeBarbers++;
         const hasBooking = bookings.some(b => b.hairdresserId === hd.id && b.date === date && slotStart < b.endTime && b.startTime < slotEnd);
-        if (hasBooking) {
+        const isBusy = checkIsBusySlot(hd, slotStart, slotEnd);
+        const isOnBreak = checkIsBreakSlot(hd, slotStart, slotEnd);
+        if (hasBooking || isBusy || isOnBreak) {
           bookedBarbers++;
         }
       }
@@ -256,6 +419,12 @@ export default function BookingForm({
     e.preventDefault();
     setErrorMsg(null);
 
+    // Validate Shop Holidays
+    if (isShopHolidaySelected()) {
+      setErrorMsg(`⚠️ วันนี้ (${getSelectedDateThaiDayName()}) เป็นวันหยุดร้าน ไม่สามารถลงคิวจองในระบบได้`);
+      return;
+    }
+
     // Basic Validation
     if (!activeRecorder) {
       setErrorMsg('กรุณาเลือกผู้บันทึก (ช่างในร้าน)');
@@ -300,6 +469,40 @@ export default function BookingForm({
         });
         if (hasOverlapBooking) return false;
 
+        // 4. Must not be currently busy at the physical shop
+        if (hd.busyUntil && hd.busyStart && date === getTodayDateString()) {
+          const now = new Date();
+          const busyUntilDT = new Date(hd.busyUntil);
+          if (busyUntilDT > now) {
+            const busyStartDT = new Date(hd.busyStart);
+            const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+            const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+
+            const reqStartDT = new Date(`${date}T${startTime}:00`);
+            const reqEndDT = new Date(`${date}T${endTime}:00`);
+            if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+              return false;
+            }
+          }
+        }
+
+        // 5. Must not be currently on break at the physical shop
+        if (hd.breakUntil && hd.breakStart && date === getTodayDateString()) {
+          const now = new Date();
+          const breakUntilDT = new Date(hd.breakUntil);
+          if (breakUntilDT > now) {
+            const breakStartDT = new Date(hd.breakStart);
+            const isFarFuture = breakUntilDT.getFullYear() >= 2030;
+            const effectiveEndDT = isFarFuture ? now : breakUntilDT;
+
+            const reqStartDT = new Date(`${date}T${startTime}:00`);
+            const reqEndDT = new Date(`${date}T${endTime}:00`);
+            if (reqStartDT < effectiveEndDT && breakStartDT < reqEndDT) {
+              return false;
+            }
+          }
+        }
+
         return true;
       });
 
@@ -328,6 +531,43 @@ export default function BookingForm({
       finalHairdresserId = availableHairdressers[0].id;
       isAnyBarberAssigned = true;
     } else {
+      // Validate if the selected hairdresser is currently busy at the shop
+      const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
+      if (selectedHairdresser && selectedHairdresser.busyUntil && selectedHairdresser.busyStart && date === getTodayDateString()) {
+        const now = new Date();
+        const busyUntilDT = new Date(selectedHairdresser.busyUntil);
+        if (busyUntilDT > now) {
+          const busyStartDT = new Date(selectedHairdresser.busyStart);
+          const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+          const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+
+          const reqStartDT = new Date(`${date}T${startTime}:00`);
+          const reqEndDT = new Date(`${date}T${endTime}:00`);
+          if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+            setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังติดให้บริการตัดผมหน้าร้านอยู่ ณ ขณะนี้ และยังไม่เสร็จงาน จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+            return;
+          }
+        }
+      }
+
+      // Validate if the selected hairdresser is currently on break at the shop
+      if (selectedHairdresser && selectedHairdresser.breakUntil && selectedHairdresser.breakStart && date === getTodayDateString()) {
+        const now = new Date();
+        const breakUntilDT = new Date(selectedHairdresser.breakUntil);
+        if (breakUntilDT > now) {
+          const breakStartDT = new Date(selectedHairdresser.breakStart);
+          const isFarFuture = breakUntilDT.getFullYear() >= 2030;
+          const effectiveEndDT = isFarFuture ? now : breakUntilDT;
+
+          const reqStartDT = new Date(`${date}T${startTime}:00`);
+          const reqEndDT = new Date(`${date}T${endTime}:00`);
+          if (reqStartDT < effectiveEndDT && breakStartDT < reqEndDT) {
+            setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังพักเบรกอยู่ ณ ขณะนี้ ยังไม่พร้อมให้บริการ จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+            return;
+          }
+        }
+      }
+
       // Validate if the selected hairdresser has a partial leave/closure
       if (leaves && leaves.length > 0) {
         const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
@@ -507,6 +747,19 @@ export default function BookingForm({
             </select>
           </div>
         </div>
+
+        {/* Shop Holiday Warning */}
+        {isShopHolidaySelected() && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex gap-3 items-center animate-shake" id="shop-holiday-warning">
+            <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+            <div className="flex-1">
+              <h4 className="text-xs font-bold text-red-900">ร้านปิดทำการประจำสัปดาห์ (วันหยุดร้าน)</h4>
+              <p className="text-[11px] text-red-700 mt-0.5 leading-relaxed">
+                วันที่เลือกตรงกับ <strong>{getSelectedDateThaiDayName()}</strong> ซึ่งถูกกำหนดเป็นวันหยุดประจำสาขาของทางร้าน ระบบปิดบริการรับคิวจองอัตโนมัติในวันนี้
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 2. Hairdresser Selection Buttons */}
         <div className="space-y-2.5">
@@ -834,6 +1087,100 @@ export default function BookingForm({
             </div>
           </div>
 
+          {/* Barber Fast Busy Status Update Widget (หน้าร้านช่างตัดผม) */}
+          <div className="bg-amber-50/50 border border-amber-200/50 rounded-2xl p-4 space-y-3" id="barber-busy-toggle-widget">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                <span className="text-sm">💈</span>
+                <span>สถานะการให้บริการจริงหน้าร้าน (สำหรับช่างกดด่วน)</span>
+              </div>
+              <span className="text-[10px] text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded-full font-bold self-start sm:self-auto">
+                ป้องกันการซ้อนคิวจากหลังบ้านโดยอัตโนมัติ
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {hairdressers.filter(h => !h.onLeave).map(hd => {
+                const isCurrentlyBusy = hd.busyUntil && hd.busyStart && new Date(hd.busyUntil) > new Date();
+                const isCurrentlyOnBreak = hd.breakUntil && hd.breakStart && new Date(hd.breakUntil) > new Date();
+                
+                const dStart = isCurrentlyBusy && hd.busyStart ? new Date(hd.busyStart) : (isCurrentlyOnBreak && hd.breakStart ? new Date(hd.breakStart) : null);
+                const hh = dStart ? String(dStart.getHours()).padStart(2, '0') : '';
+                const mm = dStart ? String(dStart.getMinutes()).padStart(2, '0') : '';
+                const busyUntilFormatted = isCurrentlyBusy ? `กำลังให้บริการ (${hh}.${mm}น.)` : '';
+                const breakUntilFormatted = isCurrentlyOnBreak ? `พักเบรก (${hh}.${mm}น.)` : '';
+
+                return (
+                  <div key={`busy-widget-${hd.id}`} className="bg-white border border-stone-150 rounded-xl p-2.5 flex flex-col justify-between gap-2 shadow-xs">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-xs font-bold text-stone-850 truncate">ช่าง{hd.name}</span>
+                        {isCurrentlyBusy ? (
+                          <span className="text-[9px] bg-rose-50 text-rose-700 border border-rose-200/40 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                            {busyUntilFormatted}
+                          </span>
+                        ) : isCurrentlyOnBreak ? (
+                          <span className="text-[9px] bg-sky-50 text-sky-700 border border-sky-200/40 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0 animate-pulse">
+                            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                            {breakUntilFormatted}
+                          </span>
+                        ) : (
+                          <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200/40 px-1.5 py-0.5 rounded-md font-bold flex items-center gap-1 shrink-0">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            ว่างอยู่
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-1.5">
+                      {isCurrentlyBusy ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBusy(hd.id, false)}
+                          className="w-full py-1.5 px-2 rounded-lg text-[10px] font-bold bg-stone-100 hover:bg-stone-200/80 text-stone-700 border border-stone-200 transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98]"
+                        >
+                          🔓 เสร็จงานแล้ว (ว่างรับคิวต่อ)
+                        </button>
+                      ) : isCurrentlyOnBreak ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBreak(hd.id, false)}
+                          className="w-full py-1.5 px-2 rounded-lg text-[10px] font-bold bg-stone-100 hover:bg-stone-200/80 text-stone-700 border border-stone-200 transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98]"
+                        >
+                          🔓 กลับมาทำงาน (ว่างรับคิวต่อ)
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBusy(hd.id, true)}
+                            className="w-1/2 py-1.5 px-2 rounded-lg text-[10px] font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98]"
+                          >
+                            ⚡️ ตัดผม (ไม่ว่าง)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleBreak(hd.id, true)}
+                            className="w-1/2 py-1.5 px-2 rounded-lg text-[10px] font-bold bg-sky-500 hover:bg-sky-600 text-white transition-all cursor-pointer flex items-center justify-center gap-1 active:scale-[0.98]"
+                          >
+                            ☕️ พักเบรก
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {hairdressers.filter(h => !h.onLeave).length === 0 && (
+                <div className="col-span-full py-2 text-center text-stone-400 text-xs">
+                  ไม่มีช่างเวรปฏิบัติงานวันนี้
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Quick Filter Bar */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-xs text-stone-600 font-semibold">
@@ -915,7 +1262,7 @@ export default function BookingForm({
                 <tbody className="divide-y divide-stone-100 bg-white">
                   {filteredSlots.map(slotStart => {
                     const slotEnd = getEndTimeOfSlot(slotStart);
-                    const density = getSlotDensity(slotStart, slotEnd);
+                    const density = isShopHolidaySelected() ? 'closed' : getSlotDensity(slotStart, slotEnd);
                     
                     // Density dot color
                     let densityDot = 'bg-emerald-500';
@@ -941,9 +1288,19 @@ export default function BookingForm({
 
                         {/* Barbers cells */}
                         {hairdressers.map(hd => {
+                          if (isShopHolidaySelected()) {
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-red-50 text-red-600 text-[10px] font-bold select-none" title="วันหยุดประจำสัปดาห์ของร้าน">
+                                📅 วันหยุดร้าน
+                              </td>
+                            );
+                          }
+
                           const isOnGeneralLeave = !!hd.onLeave;
                           const partialLeave = leaves?.find(l => l.hairdresserId === hd.id && l.date === date && slotStart < l.endTime && l.startTime < slotEnd);
                           const activeBooking = bookings?.find(b => b.hairdresserId === hd.id && b.date === date && slotStart < b.endTime && b.startTime < slotEnd);
+                          const isBusyNow = checkIsBusySlot(hd, slotStart, slotEnd);
+                          const isBreakNow = checkIsBreakSlot(hd, slotStart, slotEnd);
 
                           // State logic
                           if (isOnGeneralLeave) {
@@ -958,6 +1315,34 @@ export default function BookingForm({
                             return (
                               <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-amber-50 text-amber-700 text-[9px] font-bold" title={`ปิดช่วงเวลา: ${partialLeave.startTime} - ${partialLeave.endTime}`}>
                                 🚫 ปิดคิว
+                              </td>
+                            );
+                          }
+
+                          if (isBusyNow) {
+                            const dStart = new Date(hd.busyStart!);
+                            const hh = String(dStart.getHours()).padStart(2, '0');
+                            const mm = String(dStart.getMinutes()).padStart(2, '0');
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-orange-50 text-orange-800 text-[10px] font-bold border border-orange-100/50" title={`ช่างกำลังให้บริการตัดผมหน้าร้าน (เริ่มเมื่อ ${hh}:${mm})`}>
+                                <div className="truncate max-w-[120px] mx-auto font-bold flex flex-col items-center justify-center gap-0.5 text-orange-900 leading-tight">
+                                  <span>💈 กำลังให้บริการ</span>
+                                  <span className="text-[9px] opacity-75">({hh}.{mm}น.)</span>
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          if (isBreakNow) {
+                            const dStart = new Date(hd.breakStart!);
+                            const hh = String(dStart.getHours()).padStart(2, '0');
+                            const mm = String(dStart.getMinutes()).padStart(2, '0');
+                            return (
+                              <td key={`cell-${slotStart}-${hd.id}`} className="px-1.5 py-1 text-center bg-sky-50 text-sky-800 text-[10px] font-bold border border-sky-100/50" title={`ช่างกำลังพักเบรก (เริ่มเมื่อ ${hh}:${mm})`}>
+                                <div className="truncate max-w-[120px] mx-auto font-bold flex flex-col items-center justify-center gap-0.5 text-sky-900 leading-tight">
+                                  <span>☕️ พักเบรก</span>
+                                  <span className="text-[9px] opacity-75">({hh}.{mm}น.)</span>
+                                </div>
                               </td>
                             );
                           }

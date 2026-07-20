@@ -7,6 +7,10 @@ export interface Hairdresser {
   id: string;
   name: string;
   onLeave?: boolean;
+  busyStart?: string; // ISO string representing when they started serving
+  busyUntil?: string; // ISO string representing when they will be free
+  breakStart?: string; // ISO string representing when they started break
+  breakUntil?: string; // ISO string representing when they will finish break
 }
 
 export interface Booking {
