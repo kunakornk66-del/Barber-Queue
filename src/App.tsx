@@ -9,8 +9,8 @@ import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
-import CustomerInsights from './components/CustomerInsights';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Sparkles } from 'lucide-react';
+import DisplayView from './components/DisplayView';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink } from 'lucide-react';
 
 // Import Firebase dependencies
 import { db, handleFirestoreError, OperationType } from './firebase';
@@ -41,6 +41,11 @@ export default function App() {
   const [shopLogoUrl, setShopLogoUrl] = useState<string>('');
   const [slotDuration, setSlotDuration] = useState<number>(30); // Default to 30 minutes
   const [shopHolidays, setShopHolidays] = useState<number[]>([]); // Sunday = 0, Monday = 1, etc.
+  const [shopOpenTime, setShopOpenTime] = useState<string>('10:00');
+  const [shopCloseTime, setShopCloseTime] = useState<string>('21:00');
+  const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
+  const [isFullscreenDisplay, setIsFullscreenDisplay] = useState<boolean>(false);
+  const [showTvInstructions, setShowTvInstructions] = useState<boolean>(false);
 
   // Dynamic set activeShopEmail with multiple robust URL parser fallbacks (query, hash, and pathnames)
   const [activeShopEmail, setActiveShopEmail] = useState<string | null>(() => {
@@ -215,6 +220,8 @@ export default function App() {
         if (data.shopLogoUrl) setShopLogoUrl(data.shopLogoUrl);
         if (data.slotDuration) setSlotDuration(Number(data.slotDuration));
         if (data.shopHolidays !== undefined) setShopHolidays(data.shopHolidays || []);
+        if (data.shopOpenTime) setShopOpenTime(data.shopOpenTime);
+        if (data.shopCloseTime) setShopCloseTime(data.shopCloseTime);
       } catch (e) {
         console.warn("Error parsing local settings backup:", e);
       }
@@ -224,6 +231,8 @@ export default function App() {
       setShopLogoUrl('');
       setSlotDuration(30);
       setShopHolidays([]);
+      setShopOpenTime('10:00');
+      setShopCloseTime('21:00');
     }
 
     const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
@@ -254,6 +263,16 @@ export default function App() {
           } else {
             setShopHolidays([]);
           }
+          if (data.shopOpenTime) {
+            setShopOpenTime(data.shopOpenTime);
+          } else {
+            setShopOpenTime('10:00');
+          }
+          if (data.shopCloseTime) {
+            setShopCloseTime(data.shopCloseTime);
+          } else {
+            setShopCloseTime('21:00');
+          }
           localStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
@@ -264,6 +283,8 @@ export default function App() {
           setShopLogoUrl('');
           setSlotDuration(30);
           setShopHolidays([]);
+          setShopOpenTime('10:00');
+          setShopCloseTime('21:00');
         }
       }
     }, (error) => {
@@ -883,6 +904,54 @@ export default function App() {
     }
   };
 
+  const handleUpdateShopOpenTime = async (openTime: string) => {
+    if (!activeShopEmail) return;
+    if (!isManager) {
+      alert("⚠️ สิทธิ์ปฏิเสธ: คุณไม่มีสิทธิ์เข้าตั้งค่าเวลาเปิดทำการของสาขานี้");
+      return;
+    }
+
+    setShopOpenTime(openTime);
+    const localKey = `backup_settings_${activeShopEmail}`;
+    try {
+      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      data.shopOpenTime = openTime;
+      localStorage.setItem(localKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Local storage write skipped:", e);
+    }
+
+    try {
+      await setDoc(doc(db, 'stores', activeShopEmail, 'settings', 'config'), { shopOpenTime: openTime }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/settings/config`, false);
+    }
+  };
+
+  const handleUpdateShopCloseTime = async (closeTime: string) => {
+    if (!activeShopEmail) return;
+    if (!isManager) {
+      alert("⚠️ สิทธิ์ปฏิเสธ: คุณไม่มีสิทธิ์เข้าตั้งค่าเวลาปิดทำการของสาขานี้");
+      return;
+    }
+
+    setShopCloseTime(closeTime);
+    const localKey = `backup_settings_${activeShopEmail}`;
+    try {
+      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      data.shopCloseTime = closeTime;
+      localStorage.setItem(localKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Local storage write skipped:", e);
+    }
+
+    try {
+      await setDoc(doc(db, 'stores', activeShopEmail, 'settings', 'config'), { shopCloseTime: closeTime }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/settings/config`, false);
+    }
+  };
+
   if (!activeShopEmail) {
     return (
       <div className="min-h-screen bg-[#0B1325] font-sans text-stone-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" id="portal-container">
@@ -947,6 +1016,46 @@ export default function App() {
 
           </div>
         </div>
+      </div>
+    );
+  }
+
+  const isDisplayOnly = 
+    new URLSearchParams(window.location.search).get('view') === 'display' || 
+    window.location.hash.includes('view=display') ||
+    window.location.hash.includes('display') ||
+    isFullscreenDisplay;
+
+  if (activeShopEmail && isDisplayOnly) {
+    return (
+      <div className="min-h-screen bg-[#FDFBF7] antialiased relative" id="display-only-container">
+        {isDisplayOnly && (
+          <button
+            type="button"
+            onClick={() => {
+              setIsFullscreenDisplay(false);
+              // Clear search query params and hash if present
+              if (window.location.search.includes('view=display') || window.location.hash.includes('display')) {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('view');
+                // Keep the shop param if it exists
+                const shopEmail = url.searchParams.get('shop');
+                window.location.href = window.location.origin + window.location.pathname + (shopEmail ? `?shop=${encodeURIComponent(shopEmail)}` : '');
+              }
+            }}
+            className="fixed bottom-6 right-6 z-50 bg-stone-900 text-white font-bold px-5 py-3 rounded-2xl transition-all shadow-2xl flex items-center gap-2 cursor-pointer active:scale-95 text-xs ring-2 ring-white/10 hover:bg-stone-800 animate-bounce"
+          >
+            <span>⬅️ ออกจากโหมดเต็มจอ (กลับหน้าหลัก)</span>
+          </button>
+        )}
+        <DisplayView
+          bookings={bookings}
+          hairdressers={hairdressers}
+          shopName={shopName}
+          shopLogoUrl={shopLogoUrl}
+          shopOpenTime={shopOpenTime}
+          shopCloseTime={shopCloseTime}
+        />
       </div>
     );
   }
@@ -1036,6 +1145,18 @@ export default function App() {
               </div>
             </div>
 
+            {/* TV Mode Toggle Button */}
+            <button
+              type="button"
+              id="header-tv-mode-btn"
+              onClick={() => setIsFullscreenDisplay(true)}
+              className="bg-emerald-700 hover:bg-emerald-800 border border-emerald-600/30 text-white px-4 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
+              title="สลับหน้านี้เป็นโหมดจอทีวีคิวหน้าร้าน"
+            >
+              <Tv className="w-3.5 h-3.5 animate-pulse" />
+              <span>เปิดจอทีวี (TV Mode)</span>
+            </button>
+
             {/* Logout Branch Button */}
             <button
               type="button"
@@ -1123,18 +1244,18 @@ export default function App() {
             )}
           </button>
 
-          {/* Tab 5: วิเคราะห์ลูกค้า (AI) */}
+          {/* Tab 6: หน้าจอคิวหน้าร้าน (Tablet Display) */}
           <button
-            onClick={() => setActiveTab(4)}
-            id="nav-tab-insights"
+            onClick={() => setActiveTab(5)}
+            id="nav-tab-display"
             className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 4
+              activeTab === 5
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
-            <Sparkles className="w-4 h-4 shrink-0" />
-            <span>วิเคราะห์ลูกค้า (AI)</span>
+            <Tv className="w-4 h-4 shrink-0" />
+            <span>หน้าจอคิว (Tablet)</span>
           </button>
 
           {/* Tab 4: ตั้งค่า */}
@@ -1171,6 +1292,8 @@ export default function App() {
               slotDuration={slotDuration}
               activeShopEmail={activeShopEmail}
               shopHolidays={shopHolidays}
+              shopOpenTime={shopOpenTime}
+              shopCloseTime={shopCloseTime}
             />
           </div>
         )}
@@ -1198,6 +1321,8 @@ export default function App() {
               onAddLeave={handleAddLeave}
               onUpdateLeave={handleUpdateLeave}
               onDeleteLeave={handleDeleteLeave}
+              shopOpenTime={shopOpenTime}
+              shopCloseTime={shopCloseTime}
             />
           </div>
         )}
@@ -1219,6 +1344,10 @@ export default function App() {
               onUpdateSlotDuration={handleUpdateSlotDuration}
               shopHolidays={shopHolidays}
               onUpdateShopHolidays={handleUpdateShopHolidays}
+              shopOpenTime={shopOpenTime}
+              shopCloseTime={shopCloseTime}
+              onUpdateShopOpenTime={handleUpdateShopOpenTime}
+              onUpdateShopCloseTime={handleUpdateShopCloseTime}
             />
           ) : (
             <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-stone-200 shadow-sm text-center space-y-6" id="settings-pin-lock-container">
@@ -1362,12 +1491,115 @@ export default function App() {
             </div>
           )
         )}
+        {activeTab === 5 && (
+          <div className="space-y-6">
+            <div className="max-w-6xl mx-auto px-4">
+              <div className="bg-stone-100 border border-stone-200/60 p-4 rounded-3xl shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="bg-[#B05B1E]/10 text-[#B05B1E] p-2 rounded-xl shrink-0">
+                      <Tv className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-stone-900 font-sans">
+                        ระบบแสดงผลคิวแยกหน้าจอแบบเรียลไทม์ (สำหรับต่อ 2 จอ หรือสมาร์ททีวีหน้าร้าน)
+                      </h4>
+                      <p className="text-[11px] text-stone-500 font-sans">
+                        เชื่อมต่อคิวขึ้นจอทีวีหน้าร้าน ซิงค์ข้อมูลอัตโนมัติเสี้ยววินาทีผ่านระบบคลาวด์
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowTvInstructions(!showTvInstructions)}
+                      className="bg-white hover:bg-stone-50 border border-stone-200 text-stone-700 text-xs font-bold px-3.5 py-2 rounded-xl transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                    >
+                      {showTvInstructions ? (
+                        <>
+                          <span>🙈 ซ่อนคู่มือตั้งค่า</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>📖 แสดงวิธีต่อสองจอ (แก้ 404)</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsFullscreenDisplay(true)}
+                      className="bg-[#B05B1E] hover:bg-brand-dark text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
+                    >
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>📺 เปิดโหมดทีวีหน้านี้</span>
+                    </button>
+                  </div>
+                </div>
 
-        {activeTab === 4 && (
-          <div>
-            <CustomerInsights
+                {showTvInstructions && (
+                  <div className="pt-2 border-t border-stone-200/60 space-y-3">
+                    {/* Step-by-Step Interactive Tutorial */}
+                    <div className="bg-white border border-stone-200/80 p-5 rounded-2xl space-y-4">
+                      <h5 className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                        <span className="bg-emerald-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
+                        <span>เปิดหน้าต่างแท็บที่ 2 สำหรับต่อทีวี</span>
+                      </h5>
+                      <p className="text-xs text-stone-600 leading-relaxed pl-6.5">
+                        เนื่องจากความปลอดภัยของระบบทดสอบ AI Studio หากกดเปิดลิงก์ที่สร้างขึ้นเองโดยตรงในแท็บใหม่ ระบบรักษาความปลอดภัยของเบราว์เซอร์และ Cloud Proxy จะบล็อกการเชื่อมต่อ ทำให้แสดงผลเป็น "Page not found (404)" 
+                        <br />
+                        <strong className="text-emerald-700">ทางแก้ไขที่ถูกต้องและง่ายที่สุด:</strong> ให้คลิกที่ปุ่ม <strong className="bg-stone-100 px-1.5 py-0.5 rounded text-stone-800">"เปิดในแท็บใหม่" (ปุ่มไอคอนลูกศรชี้ขึ้นขวา ↗️ ที่อยู่มุมขวาบนสุดของแถบสีฟ้าพรีวิวหน้าจอ AI Studio ด้านบนสุด)</strong> เพื่อเปิดระบบหลักในแท็บที่สองอย่างถูกต้องและปลอดภัย 100%
+                      </p>
+
+                      <h5 className="text-xs font-bold text-stone-800 flex items-center gap-1.5 pt-2">
+                        <span className="bg-emerald-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">2</span>
+                        <span>กดปุ่มสลับเข้าโหมดทีวีหน้าร้าน</span>
+                      </h5>
+                      <p className="text-xs text-stone-600 leading-relaxed pl-6.5">
+                        ในแท็บที่สองที่เพิ่งเปิดขึ้นมานั้น ให้กดปุ่มสีเขียว <strong className="text-emerald-700">"📺 เปิดจอทีวี (TV Mode)"</strong> ที่อยู่ด้านบนขวา of หน้าต่างนั้นทันที! แท็บที่สองนั้นจะสลับร่างเป็นหน้าจอแสดงผลคิวทีวีเต็มรูปแบบอย่างสง่างาม
+                      </p>
+
+                      <h5 className="text-xs font-bold text-stone-800 flex items-center gap-1.5 pt-2">
+                        <span className="bg-emerald-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">3</span>
+                        <span>ลากแท็บที่สองไปเปิดไว้ที่หน้าจอทีวี/จอที่สอง</span>
+                      </h5>
+                      <p className="text-xs text-stone-600 leading-relaxed pl-6.5">
+                        คุณสามารถลากแท็บที่สองไปเปิดที่หน้าจอทีวีหน้าร้านหรือจอเสริมได้เลย โดยที่แท็บแรกยังคงเปิดค้างเป็นหน้าบันทึกคิวหลักอยู่ตามปกติ
+                      </p>
+
+                      <h5 className="text-xs font-bold text-emerald-800 flex items-center gap-1.5 pt-2">
+                        <span className="bg-emerald-600 text-white w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold">✨</span>
+                        <span>ซิงค์ข้อมูลเรียลไทม์ 100%</span>
+                      </h5>
+                      <p className="text-xs text-stone-600 leading-relaxed pl-6.5">
+                        เมื่อคุณกดลงคิว บันทึกคิว หรือสลับคิวช่างในแท็บแรก ระบบจะทำการส่งข้อมูลผ่าน <strong>Firebase Cloud</strong> และแสดงผลอัปเดตบนหน้าจอทีวีในแท็บที่สองโดยอัตโนมัติในเสี้ยววินาที โดยที่คุณไม่ต้องคอยรีโหลดหน้าจอหรือกดสลับไปมาให้ยุ่งยากอีกต่อไป!
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Instant preview of the display design */}
+                <div className="border border-dashed border-stone-300 p-4 rounded-2xl bg-stone-50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] text-stone-500 uppercase tracking-widest font-bold">📺 ตัวอย่างหน้าจอแสดงผล (Preview Design)</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsFullscreenDisplay(true)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold px-3.5 py-1.5 rounded-xl transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Tv className="w-3.5 h-3.5" />
+                      <span>ลองกดเปิดโหมดทีวี (หน้าจอนี้)</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <DisplayView
               bookings={bookings}
               hairdressers={hairdressers}
+              shopName={shopName}
+              shopLogoUrl={shopLogoUrl}
+              shopOpenTime={shopOpenTime}
+              shopCloseTime={shopCloseTime}
             />
           </div>
         )}

@@ -56,6 +56,8 @@ interface BookingFormProps {
   slotDuration?: number;
   activeShopEmail: string | null;
   shopHolidays?: number[];
+  shopOpenTime?: string;
+  shopCloseTime?: string;
 }
 
 export default function BookingForm({
@@ -69,9 +71,13 @@ export default function BookingForm({
   currentUser,
   slotDuration = 30,
   activeShopEmail,
-  shopHolidays = []
+  shopHolidays = [],
+  shopOpenTime = '10:00',
+  shopCloseTime = '21:00'
 }: BookingFormProps) {
-  const TIME_OPTIONS = generateTimeOptions(slotDuration);
+  const TIME_OPTIONS = generateTimeOptions(slotDuration).filter(t => {
+    return t >= shopOpenTime && t <= shopCloseTime;
+  });
 
   // Helper to get local date string YYYY-MM-DD
   const getTodayDateString = () => {
@@ -82,13 +88,23 @@ export default function BookingForm({
     return `${year}-${month}-${day}`;
   };
 
-  const getNearestPrevSlotDate = (dateObj: Date): Date => {
+  const getNextRoundedSlotDate = (dateObj: Date): Date => {
     const rounded = new Date(dateObj);
     const minutes = rounded.getMinutes();
-    if (minutes >= 30) {
+    if (minutes === 0 || minutes === 30) {
+      rounded.setSeconds(0, 0);
+    } else if (minutes < 30) {
       rounded.setMinutes(30, 0, 0);
     } else {
-      rounded.setMinutes(0, 0, 0);
+      rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
+    }
+
+    // Check if earlier than shopOpenTime
+    const [openH, openM] = shopOpenTime.split(':').map(Number);
+    const roundedMinutes = rounded.getHours() * 60 + rounded.getMinutes();
+    const openMinutes = openH * 60 + openM;
+    if (roundedMinutes < openMinutes) {
+      rounded.setHours(openH, openM, 0, 0);
     }
     return rounded;
   };
@@ -137,10 +153,10 @@ export default function BookingForm({
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
       if (setBusy) {
         const now = new Date();
-        const nearestPrev = getNearestPrevSlotDate(now);
-        const busyStart = nearestPrev.toISOString();
+        const roundedStart = getNextRoundedSlotDate(now);
+        const busyStart = roundedStart.toISOString();
         // Set busy status for 60 minutes maximum (will auto-reset after 60 mins if not cleared manually)
-        const busyUntil = new Date(nearestPrev.getTime() + 60 * 60 * 1000).toISOString();
+        const busyUntil = new Date(roundedStart.getTime() + 60 * 60 * 1000).toISOString();
         await updateDoc(hairdresserRef, {
           busyStart,
           busyUntil,
@@ -165,10 +181,10 @@ export default function BookingForm({
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
       if (setBreak) {
         const now = new Date();
-        const nearestPrev = getNearestPrevSlotDate(now);
-        const breakStart = nearestPrev.toISOString();
+        const roundedStart = getNextRoundedSlotDate(now);
+        const breakStart = roundedStart.toISOString();
         // Set break status for 30 minutes maximum (will auto-reset after 30 mins if not cleared manually)
-        const breakUntil = new Date(nearestPrev.getTime() + 30 * 60 * 1000).toISOString();
+        const breakUntil = new Date(roundedStart.getTime() + 30 * 60 * 1000).toISOString();
         await updateDoc(hairdresserRef, {
           breakStart,
           breakUntil,
@@ -189,8 +205,32 @@ export default function BookingForm({
 
   // State fields
   const [date, setDate] = useState(getTodayDateString());
-  const [startTime, setStartTime] = useState('10:00');
-  const [endTime, setEndTime] = useState('10:30');
+  const [startTime, setStartTime] = useState(shopOpenTime);
+  const [endTime, setEndTime] = useState(() => {
+    const [h, m] = shopOpenTime.split(':').map(Number);
+    let eh = h;
+    let em = m + slotDuration;
+    if (em >= 60) {
+      eh += Math.floor(em / 60);
+      em = em % 60;
+    }
+    return `${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`;
+  });
+
+  // Keep startTime and endTime in sync when shopOpenTime or slotDuration changes
+  useEffect(() => {
+    if (shopOpenTime) {
+      setStartTime(shopOpenTime);
+      const [h, m] = shopOpenTime.split(':').map(Number);
+      let eh = h;
+      let em = m + slotDuration;
+      if (em >= 60) {
+        eh += Math.floor(em / 60);
+        em = em % 60;
+      }
+      setEndTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
+    }
+  }, [shopOpenTime, slotDuration]);
   
   // selectedHairdresserId: null represents "ไม่ระบุช่าง"
   const [selectedHairdresserId, setSelectedHairdresserId] = useState<string | null>(null);
@@ -247,23 +287,24 @@ export default function BookingForm({
   // States & Helpers for "Overall Shop Queue Status"
   const [timeFilter, setTimeFilter] = useState<'morning' | 'afternoon' | 'evening' | 'all'>('all');
 
-  // Generate ALL_SLOTS dynamically with 30-minute resolution for maximum booking flexibility (09:00 to 21:00)
+  // Generate ALL_SLOTS dynamically with fixed 30-minute resolution for the shop queue grid
   const ALL_SLOTS: string[] = [];
-  const startHour = 9;
-  const endHour = 21;
-  let currentMinutes = startHour * 60;
-  const endMinutesLimit = endHour * 60;
+  const [openH, openM] = shopOpenTime.split(':').map(Number);
+  const [closeH, closeM] = shopCloseTime.split(':').map(Number);
+  const startMinutes = openH * 60 + openM;
+  const endMinutesLimit = closeH * 60 + closeM;
+  let currentMinutes = startMinutes;
   while (currentMinutes < endMinutesLimit) {
     const hh = String(Math.floor(currentMinutes / 60)).padStart(2, '0');
     const mm = String(currentMinutes % 60).padStart(2, '0');
     ALL_SLOTS.push(`${hh}:${mm}`);
-    currentMinutes += 30; // Always 30-minute increments for precise booking starts
+    currentMinutes += 30; // Always 30-minute increments for the grid
   }
 
   const getEndTimeOfSlot = (startTimeStr: string) => {
     const [h, m] = startTimeStr.split(':').map(Number);
     let eh = h;
-    let em = m + slotDuration;
+    let em = m + 30; // Always 30-minute intervals for grid slots regardless of booking duration
     if (em >= 60) {
       const extraHours = Math.floor(em / 60);
       eh += extraHours;
@@ -302,7 +343,7 @@ export default function BookingForm({
   const filteredSlots = ALL_SLOTS.filter(slot => {
     if (timeFilter === 'morning') return slot >= '09:00' && slot < '13:00';
     if (timeFilter === 'afternoon') return slot >= '13:00' && slot < '17:00';
-    if (timeFilter === 'evening') return slot >= '17:00' && slot < '21:00';
+    if (timeFilter === 'evening') return slot >= '17:00';
     return true; // 'all'
   });
 
@@ -897,7 +938,7 @@ export default function BookingForm({
               <input
                 type="text"
                 id="customer-name-input"
-                placeholder="เช่น คุณสมศักดิ์ (เว้นว่างได้)"
+                placeholder="กรุณากรอกชื่อลูกค้า"
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all"
@@ -912,7 +953,7 @@ export default function BookingForm({
               <input
                 type="tel"
                 id="customer-phone-input"
-                placeholder="เช่น 095-xxxxxxx (เว้นว่างได้)"
+                placeholder=""
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
                 className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all"
@@ -965,7 +1006,7 @@ export default function BookingForm({
           <textarea
             id="remarks-input"
             rows={2}
-            placeholder="เช่น สระ-ไดร์, ย้อมผมสีเทา, ดัดพาร์ม, หรือตัดทรงวินเทจ (ทวิสท์)..."
+            placeholder=""
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
             className="w-full text-sm p-3.5 rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all resize-none font-sans"

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import { Hairdresser, LeaveRecord } from '../types';
 import { Calendar, Clock, User, FileText, Plus, Trash2, Edit2, Save, X, AlertCircle } from 'lucide-react';
 
@@ -26,14 +26,14 @@ export const generateTimeOptions = () => {
   return options;
 };
 
-const TIME_OPTIONS = generateTimeOptions();
-
 interface LeaveManagerProps {
   hairdressers: Hairdresser[];
   leaves: LeaveRecord[];
   onAddLeave: (leave: Omit<LeaveRecord, 'id' | 'createdAt'>) => Promise<void>;
   onUpdateLeave: (id: string, updatedFields: Partial<LeaveRecord>) => Promise<void>;
   onDeleteLeave: (id: string) => Promise<void>;
+  shopOpenTime?: string;
+  shopCloseTime?: string;
 }
 
 export default function LeaveManager({
@@ -41,8 +41,13 @@ export default function LeaveManager({
   leaves,
   onAddLeave,
   onUpdateLeave,
-  onDeleteLeave
+  onDeleteLeave,
+  shopOpenTime = '10:00',
+  shopCloseTime = '21:00'
 }: LeaveManagerProps) {
+  const TIME_OPTIONS = generateTimeOptions().filter(t => {
+    return t >= shopOpenTime && t <= shopCloseTime;
+  });
   // Form input states
   const [selectedHairdresserId, setSelectedHairdresserId] = useState<string>('');
   const [leaveDate, setLeaveDate] = useState<string>(() => {
@@ -57,6 +62,16 @@ export default function LeaveManager({
   const [details, setDetails] = useState<string>('');
   const [recorder, setRecorder] = useState<string>('');
 
+  // Synchronize defaults with shopOpenTime and shopCloseTime
+  useEffect(() => {
+    if (shopOpenTime) {
+      setStartTime(shopOpenTime);
+    }
+    if (shopCloseTime) {
+      setEndTime(shopCloseTime);
+    }
+  }, [shopOpenTime, shopCloseTime]);
+
   // Editing state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editHairdresserId, setEditHairdresserId] = useState<string>('');
@@ -69,6 +84,7 @@ export default function LeaveManager({
   // Errors / Success status
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -172,14 +188,12 @@ export default function LeaveManager({
   };
 
   const handleDelete = async (id: string) => {
-    if (confirm('คุณแน่ใจหรือไม่ว่าต้องการลบรายการปิดคิวช่างนี้?')) {
-      try {
-        await onDeleteLeave(id);
-        setSuccessMsg('🗑️ ลบรายการปิดคิวเรียบร้อย');
-        setTimeout(() => setSuccessMsg(null), 3000);
-      } catch (e: any) {
-        setErrorMsg(e.message || 'เกิดข้อผิดพลาดในการลบ');
-      }
+    try {
+      await onDeleteLeave(id);
+      setSuccessMsg('🗑️ ลบรายการปิดคิวเรียบร้อย');
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (e: any) {
+      setErrorMsg(e.message || 'เกิดข้อผิดพลาดในการลบ');
     }
   };
 
@@ -512,25 +526,50 @@ export default function LeaveManager({
                       </div>
                     </div>
 
-                    <div className="flex gap-1.5 sm:self-center shrink-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-stone-100 pt-2 sm:pt-0">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(leave)}
-                        className="px-3 py-1.5 text-[11px] font-bold border border-stone-200 hover:border-brand bg-white hover:bg-brand-light text-stone-600 hover:text-brand-dark rounded-xl transition-all cursor-pointer flex items-center gap-1"
-                        title="แก้ไขรายละเอียดการปิดเวลา"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                        <span>แก้ไข</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(leave.id)}
-                        className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                        title="ลบรายการปิดเวลาออก"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {confirmDeleteId === leave.id ? (
+                      <div className="bg-red-50 border border-red-200 p-2.5 rounded-xl flex items-center justify-between gap-3 text-xs w-full sm:w-auto font-sans">
+                        <span className="font-bold text-red-950 shrink-0">ลบรายการปิดคิวนี้?</span>
+                        <div className="flex gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-850 font-bold rounded-lg cursor-pointer transition-all"
+                          >
+                            ยกเลิก
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleDelete(leave.id);
+                              setConfirmDeleteId(null);
+                            }}
+                            className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-black rounded-lg cursor-pointer transition-all shadow-xs"
+                          >
+                            ยืนยันลบ
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-1.5 sm:self-center shrink-0 w-full sm:w-auto justify-end border-t sm:border-t-0 border-stone-100 pt-2 sm:pt-0">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(leave)}
+                          className="px-3 py-1.5 text-[11px] font-bold border border-stone-200 hover:border-brand bg-white hover:bg-brand-light text-stone-600 hover:text-brand-dark rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                          title="แก้ไขรายละเอียดการปิดเวลา"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>แก้ไข</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmDeleteId(leave.id)}
+                          className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                          title="ลบรายการปิดเวลาออก"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })

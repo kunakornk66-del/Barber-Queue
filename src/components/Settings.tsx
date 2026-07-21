@@ -49,6 +49,10 @@ interface SettingsProps {
   onUpdateSlotDuration: (duration: number) => void;
   shopHolidays: number[];
   onUpdateShopHolidays: (holidays: number[]) => void;
+  shopOpenTime?: string;
+  shopCloseTime?: string;
+  onUpdateShopOpenTime: (openTime: string) => void;
+  onUpdateShopCloseTime: (closeTime: string) => void;
 }
 
 export default function Settings({
@@ -65,12 +69,29 @@ export default function Settings({
   slotDuration,
   onUpdateSlotDuration,
   shopHolidays,
-  onUpdateShopHolidays
+  onUpdateShopHolidays,
+  shopOpenTime,
+  shopCloseTime,
+  onUpdateShopOpenTime,
+  onUpdateShopCloseTime
 }: SettingsProps) {
   const [newHairdresserName, setNewHairdresserName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hairdresserToDelete, setHairdresserToDelete] = useState<string | null>(null);
+  
+  // Shop opening/closing hours settings states
+  const [hoursSuccess, setHoursSuccess] = useState(false);
+  const getHourOptions = () => {
+    const options: string[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      for (let min of ['00', '30']) {
+        options.push(`${String(hour).padStart(2, '0')}:${min}`);
+      }
+    }
+    return options;
+  };
+  const hourOptions = getHourOptions();
   
   // Store name settings states
   const [newShopName, setNewShopName] = useState(shopName);
@@ -410,6 +431,69 @@ export default function Settings({
               >
                 <option value={30}>30 นาที (ค่าเริ่มต้น)</option>
                 <option value={60}>1 ชั่วโมง (60 นาที)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Shop Business Hours Configuration Card */}
+      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-hours-settings-card">
+        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+          <div>
+            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+              <Clock className="w-5 h-5 text-brand" /> ตั้งค่าเวลาทำการร้าน (เวลาเปิด-ปิดร้าน)
+            </h2>
+            <p className="text-stone-400 text-xs mt-1 font-light">
+              กำหนดเวลาเปิดและปิดร้าน เพื่อให้สอดคล้องกันทั้งการแสดงผลตารางคิวรวมช่าง และการเลือกเวลาจอง/ปิดคิว
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-4">
+          {hoursSuccess && (
+            <div className="bg-amber-100 border border-brand/30 text-stone-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="hours-success-msg">
+              <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+              <span>บันทึกตั้งค่าเวลาเปิด-ปิดร้านเรียบร้อยแล้ว!</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
+              <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                🌅 เวลาเปิดร้าน
+              </label>
+              <select
+                value={shopOpenTime || '10:00'}
+                onChange={(e) => {
+                  onUpdateShopOpenTime(e.target.value);
+                  setHoursSuccess(true);
+                  setTimeout(() => setHoursSuccess(false), 3000);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
+              >
+                {hourOptions.map((opt) => (
+                  <option key={`open-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
+              <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                🌙 เวลาปิดร้าน
+              </label>
+              <select
+                value={shopCloseTime || '21:00'}
+                onChange={(e) => {
+                  onUpdateShopCloseTime(e.target.value);
+                  setHoursSuccess(true);
+                  setTimeout(() => setHoursSuccess(false), 3000);
+                }}
+                className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
+              >
+                {hourOptions.map((opt) => (
+                  <option key={`close-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
+                ))}
               </select>
             </div>
           </div>
@@ -770,7 +854,7 @@ export default function Settings({
                 <input
                   type="text"
                   id="add-barber-input"
-                  placeholder="เช่น เอ็ม, บอล, เจี๊ยบ, เจน"
+                  placeholder=""
                   value={newHairdresserName}
                   onChange={(e) => setNewHairdresserName(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-sans font-bold text-stone-900"
