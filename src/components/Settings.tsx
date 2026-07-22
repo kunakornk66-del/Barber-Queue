@@ -62,6 +62,7 @@ interface SettingsProps {
   services: ShopService[];
   onAddService: (service: Omit<ShopService, 'id'>) => void;
   onDeleteService: (id: string) => void;
+  onUpdateService?: (service: ShopService) => void;
   activeShopEmail: string | null;
 }
 
@@ -92,6 +93,7 @@ export default function Settings({
   services,
   onAddService,
   onDeleteService,
+  onUpdateService,
   activeShopEmail
 }: SettingsProps) {
 
@@ -394,6 +396,37 @@ export default function Settings({
   const [serviceSuccess, setServiceSuccess] = useState<string | null>(null);
   const [copiedCustomerLink, setCopiedCustomerLink] = useState(false);
 
+  // Editing existing service state
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
+  const [editServiceName, setEditServiceName] = useState('');
+  const [editServiceDuration, setEditServiceDuration] = useState<number>(30);
+  const [editServicePrice, setEditServicePrice] = useState<string>('');
+  const [editServiceCategory, setEditServiceCategory] = useState<string>('ตัดผม');
+
+  const handleStartEditService = (srv: ShopService) => {
+    setEditingServiceId(srv.id);
+    setEditServiceName(srv.name);
+    setEditServiceDuration(srv.durationMinutes);
+    setEditServicePrice(srv.price !== undefined ? String(srv.price) : '');
+    setEditServiceCategory(srv.category || 'ตัดผม');
+  };
+
+  const handleSaveEditService = (srvId: string) => {
+    if (!editServiceName.trim()) return;
+    if (onUpdateService) {
+      onUpdateService({
+        id: srvId,
+        name: editServiceName.trim(),
+        durationMinutes: Number(editServiceDuration) || 30,
+        price: editServicePrice ? Number(editServicePrice) : 0,
+        category: editServiceCategory
+      });
+    }
+    setEditingServiceId(null);
+    setServiceSuccess('แก้ไขข้อมูลบริการเรียบร้อยแล้ว!');
+    setTimeout(() => setServiceSuccess(null), 3000);
+  };
+
   const handleAddServiceSubmit = (e: FormEvent) => {
     e.preventDefault();
     setServiceError(null);
@@ -619,42 +652,146 @@ export default function Settings({
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {services.map((srv) => (
-                    <div
-                      key={srv.id}
-                      className="p-3 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-2 shadow-2xs"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-black text-stone-900">{srv.name}</span>
-                          {srv.category && (
-                            <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-bold">
-                              {srv.category}
+                  {services.map((srv) => {
+                    const isEditing = editingServiceId === srv.id;
+
+                    if (isEditing) {
+                      return (
+                        <div key={srv.id} className="p-3 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 col-span-1 sm:col-span-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                              <Edit2 className="w-3.5 h-3.5" /> กำลังแก้ไขรายการบริการ: {srv.name}
                             </span>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => setEditingServiceId(null)}
+                              className="text-stone-400 hover:text-stone-600 p-1"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] font-bold text-stone-700">ชื่อบริการ</label>
+                              <input
+                                type="text"
+                                value={editServiceName}
+                                onChange={(e) => setEditServiceName(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                              />
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] font-bold text-stone-700">หมวดหมู่บริการ</label>
+                              <select
+                                value={editServiceCategory}
+                                onChange={(e) => setEditServiceCategory(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                              >
+                                <option value="ตัดผม">ตัดผม</option>
+                                <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
+                                <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
+                                <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
+                                <option value="อื่นๆ">อื่นๆ</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] font-bold text-stone-700">ระยะเวลา (นาที)</label>
+                              <select
+                                value={editServiceDuration}
+                                onChange={(e) => setEditServiceDuration(Number(e.target.value))}
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                              >
+                                <option value={30}>30 นาที</option>
+                                <option value={45}>45 นาที</option>
+                                <option value={60}>1 ชั่วโมง (60 นาที)</option>
+                                <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
+                                <option value={120}>2 ชั่วโมง (120 นาที)</option>
+                                <option value={180}>3 ชั่วโมง (180 นาที)</option>
+                              </select>
+                            </div>
+
+                            <div className="space-y-0.5">
+                              <label className="text-[10px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
+                              <input
+                                type="number"
+                                value={editServicePrice}
+                                onChange={(e) => setEditServicePrice(e.target.value)}
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white font-mono"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingServiceId(null)}
+                              className="px-3 py-1 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                            >
+                              ยกเลิก
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEditService(srv.id)}
+                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              <span>บันทึกการแก้ไข</span>
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1">
-                          <span className="font-mono font-bold text-amber-800">⏱️ {srv.durationMinutes} นาที</span>
-                          {srv.price !== undefined && srv.price > 0 && (
-                            <span className="font-mono font-bold text-emerald-700">฿{srv.price.toLocaleString()}</span>
-                          )}
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={srv.id}
+                        className="p-3 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-2 shadow-2xs hover:border-amber-300 transition-all"
+                      >
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-black text-stone-900">{srv.name}</span>
+                            {srv.category && (
+                              <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-bold">
+                                {srv.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1">
+                            <span className="font-mono font-bold text-amber-800">⏱️ {srv.durationMinutes} นาที</span>
+                            {srv.price !== undefined && srv.price > 0 && (
+                              <span className="font-mono font-bold text-emerald-700">฿{srv.price.toLocaleString()}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleStartEditService(srv)}
+                            className="p-1.5 text-stone-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-all cursor-pointer"
+                            title="แก้ไขบริการนี้"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`คุณต้องการลบบริการ "${srv.name}" ใช่หรือไม่?`)) {
+                                onDeleteService(srv.id);
+                              }
+                            }}
+                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                            title="ลบบริการนี้"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`คุณต้องการลบบริการ "${srv.name}" ใช่หรือไม่?`)) {
-                            onDeleteService(srv.id);
-                          }
-                        }}
-                        className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                        title="ลบบริการนี้"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -920,7 +1057,7 @@ export default function Settings({
                   }`}
                 >
                   <span className="flex items-center justify-center gap-1.5">
-                    <Link className="w-3.5 h-3.5" /> วางลิงก์รูปภาพ
+                    <LinkIcon className="w-3.5 h-3.5" /> วางลิงก์รูปภาพ
                   </span>
                 </button>
               </div>
