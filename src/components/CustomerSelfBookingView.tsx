@@ -958,31 +958,42 @@ export default function CustomerSelfBookingView({
                       <div>
                         <h2 className="text-base font-bold text-stone-900 flex items-center gap-1.5">
                           <CreditCard className="w-4.5 h-4.5 text-amber-600" />
-                          <span>ชำระเงินมัดจำ / แนบสลิปโอนเงิน</span>
+                          <span>{depositAmount && depositAmount > 0 ? 'ชำระเงินมัดจำ / แนบสลิปโอนเงิน' : 'ชำระเงินค่าบริการ / แนบสลิปโอนเงิน'}</span>
                           <span className="text-red-500 text-xs">*</span>
                         </h2>
                         <p className="text-[11px] text-stone-500">
-                          ทางร้านเปิดระบบชำระเงินมัดจำล่วงหน้าเพื่อยืนยันคิวจอง
+                          {depositAmount && depositAmount > 0 
+                            ? 'ทางร้านเปิดระบบชำระเงินมัดจำล่วงหน้าเพื่อยืนยันคิวจอง' 
+                            : 'กรุณาโอนเงินตามยอดบริการและแนบสลิปโอนเงินเพื่อยืนยันการจองคิว'}
                         </p>
                       </div>
                     </div>
 
                     {/* Shop Bank / PromptPay Details */}
-                    <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-2xl space-y-3">
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-extrabold text-amber-900 flex items-center gap-1">
+                    <div className="bg-amber-50/80 border border-amber-300 p-4 rounded-2xl space-y-3.5 shadow-2xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-extrabold text-amber-950 flex items-center gap-1.5 text-xs sm:text-sm">
                           <Receipt className="w-4 h-4 text-amber-700" /> บัญชีสำหรับโอนเงิน:
                         </span>
-                        <span className="text-[11px] font-bold text-stone-600 bg-white px-2 py-0.5 rounded-lg border border-amber-200">
-                          {bankName || 'PromptPay / ธนาคาร'}
+                        <span className="text-xs sm:text-sm font-black text-amber-950 bg-amber-200/80 px-3 py-1 rounded-xl border border-amber-300/90 shadow-2xs">
+                          🏦 {bankName || 'PromptPay / ธนาคาร'}
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-3.5 rounded-xl border border-amber-200/70">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 text-xs bg-white p-4 rounded-2xl border border-amber-200/90 shadow-xs">
+                        <div className="sm:col-span-2 pb-2.5 border-b border-stone-100">
+                          <span className="text-[11px] text-stone-500 font-extrabold block uppercase tracking-wide">ธนาคาร / ช่องทางชำระเงิน:</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="text-sm sm:text-base font-black text-amber-900 bg-amber-100/80 px-3 py-1 rounded-xl border border-amber-300/80 inline-block shadow-2xs">
+                              🏦 {bankName || 'PromptPay / ธนาคาร'}
+                            </span>
+                          </div>
+                        </div>
+
                         <div>
-                          <span className="text-[10px] text-stone-400 font-bold block">เลขบัญชี / เบอร์ PromptPay:</span>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="font-mono text-sm font-black text-stone-900 select-all">
+                          <span className="text-[11px] text-stone-500 font-extrabold block uppercase tracking-wide">เลขบัญชี / เบอร์ PromptPay:</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="font-mono text-sm sm:text-base font-black text-stone-900 select-all bg-stone-100/80 px-2.5 py-1 rounded-xl border border-stone-200">
                               {promptPayNumber || 'ติดต่อทางร้าน'}
                             </span>
                             {promptPayNumber && (
@@ -992,26 +1003,28 @@ export default function CustomerSelfBookingView({
                                   navigator.clipboard.writeText(promptPayNumber);
                                   alert('คัดลอกเลขบัญชีเรียบร้อยแล้ว');
                                 }}
-                                className="p-1 hover:bg-stone-100 rounded text-stone-500 cursor-pointer"
+                                className="p-1.5 hover:bg-stone-100 active:scale-95 rounded-xl text-amber-700 cursor-pointer border border-amber-200 bg-amber-50"
                                 title="คัดลอกเลขบัญชี"
                               >
-                                <Copy className="w-3.5 h-3.5 text-amber-600" />
+                                <Copy className="w-4 h-4 text-amber-700" />
                               </button>
                             )}
                           </div>
                         </div>
 
                         <div>
-                          <span className="text-[10px] text-stone-400 font-bold block">ชื่อบัญชี:</span>
-                          <span className="font-bold text-stone-800 text-xs mt-0.5 block">
+                          <span className="text-[11px] text-stone-500 font-extrabold block uppercase tracking-wide">ชื่อบัญชีผู้รับโอน:</span>
+                          <span className="font-black text-stone-900 text-xs sm:text-sm mt-1 block">
                             {promptPayName || shopName}
                           </span>
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-xs">
-                        <span className="text-stone-600 font-bold">ยอดเงินมัดจำชำระ:</span>
-                        <span className="font-serif font-black text-emerald-700 text-sm">
+                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/80 text-xs sm:text-sm">
+                        <span className="text-stone-700 font-extrabold">
+                          {depositAmount && depositAmount > 0 ? 'ยอดเงินมัดจำชำระ:' : 'ยอดเงินที่ต้องชำระ:'}
+                        </span>
+                        <span className="font-serif font-black text-emerald-700 text-base sm:text-lg">
                           {depositAmount && depositAmount > 0 
                             ? `฿${depositAmount.toLocaleString()}` 
                             : (selectedService?.price ? `฿${selectedService.price.toLocaleString()} (ตามราคาบริการ)` : 'ตามตกลง')}
