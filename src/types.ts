@@ -45,3 +45,13 @@ export interface LeaveRecord {
   recorder: string;   // ช่างผู้บันทึก
   createdAt: string;  // ISO timestamp
 }
+
+export interface ShopService {
+  id: string;
+  name: string;             // e.g. 'ตัดผมชาย + สระไดร์'
+  durationMinutes: number;  // e.g. 30, 45, 60, 90, 120
+  price?: number;            // e.g. 250
+  category?: string;         // e.g. 'ตัดผม', 'ทำเคมี/ย้อมสี', 'ดัดวอลลุ่ม', 'สระเซ็ต'
+  description?: string;      // รายละเอียดการบริการเพิ่มเติม
+}
+

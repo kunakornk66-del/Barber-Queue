@@ -4,13 +4,14 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Hairdresser, Booking, LeaveRecord, StaffRecorder } from './types';
+import { Hairdresser, Booking, LeaveRecord, StaffRecorder, ShopService } from './types';
 import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, BellOff, BellRing, Volume2 } from 'lucide-react';
+import CustomerSelfBookingView from './components/CustomerSelfBookingView';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, BellOff, BellRing, Volume2, Globe } from 'lucide-react';
 
 // Import Firebase dependencies
 import { db, handleFirestoreError, OperationType } from './firebase';
@@ -36,6 +37,15 @@ const DEFAULT_RECORDERS: StaffRecorder[] = [
   { id: 'rec-2', name: 'พนักงานต้อนรับ (Reception)', role: 'พนักงานต้อนรับ' }
 ];
 
+const DEFAULT_SERVICES: ShopService[] = [
+  { id: 'srv-1', name: 'ตัดผมชาย + สระไดร์', durationMinutes: 30, price: 250, category: 'ตัดผม' },
+  { id: 'srv-2', name: 'ตัดผมวินเทจ + แกะลาย', durationMinutes: 45, price: 350, category: 'ตัดผม' },
+  { id: 'srv-3', name: 'ย้อมสีผม / ทำเคมี', durationMinutes: 90, price: 1200, category: 'ทำเคมี' },
+  { id: 'srv-4', name: 'ดัดวอลลุ่ม / ดัดสไตล์เกาหลี', durationMinutes: 120, price: 1500, category: 'ทำเคมี' },
+  { id: 'srv-5', name: 'สระ เซ็ต ไดร์ทรงผม', durationMinutes: 30, price: 150, category: 'สระเซ็ต' }
+];
+
+
 export default function App() {
   const [hairdressers, setHairdressers] = useState<Hairdresser[]>([]);
   const [recorders, setRecorders] = useState<StaffRecorder[]>([]);
@@ -50,10 +60,20 @@ export default function App() {
   const [shopHolidays, setShopHolidays] = useState<number[]>([]); // Sunday = 0, Monday = 1, etc.
   const [shopOpenTime, setShopOpenTime] = useState<string>('10:00');
   const [shopCloseTime, setShopCloseTime] = useState<string>('21:00');
+  const [enableSelfBooking, setEnableSelfBooking] = useState<boolean>(true);
+  const [services, setServices] = useState<ShopService[]>(DEFAULT_SERVICES);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
   const [isFullscreenDisplay, setIsFullscreenDisplay] = useState<boolean>(false);
   const [showTvInstructions, setShowTvInstructions] = useState<boolean>(false);
+
+  // Detect if current view is Customer Self-Booking Portal mode via URL query params (?mode=booking or ?client=true)
+  const isCustomerBookingMode = (() => {
+    if (typeof window === 'undefined') return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('mode') === 'booking' || urlParams.get('client') === 'true';
+  })();
+
 
   // Ticking timer for real-time shop status update
   useEffect(() => {
@@ -536,6 +556,11 @@ export default function App() {
           } else {
             setShopCloseTime('21:00');
           }
+          if (data.enableSelfBooking !== undefined) {
+            setEnableSelfBooking(Boolean(data.enableSelfBooking));
+          } else {
+            setEnableSelfBooking(true);
+          }
           localStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
@@ -548,6 +573,7 @@ export default function App() {
           setShopHolidays([]);
           setShopOpenTime('10:00');
           setShopCloseTime('21:00');
+          setEnableSelfBooking(true);
         }
       }
     }, (error) => {
@@ -555,6 +581,74 @@ export default function App() {
     });
     return () => unsubscribe();
   }, [activeShopEmail]);
+
+  // Firestore listener for Shop Services
+  useEffect(() => {
+    if (!activeShopEmail) return;
+    const servicesRef = collection(db, 'stores', activeShopEmail, 'services');
+    const unsubscribe = onSnapshot(servicesRef, (snapshot) => {
+      if (!snapshot.empty) {
+        const loaded: ShopService[] = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as ShopService));
+        setServices(loaded);
+      } else {
+        setServices(DEFAULT_SERVICES);
+      }
+    }, (error) => {
+      console.warn("Loading services error:", error);
+    });
+    return () => unsubscribe();
+  }, [activeShopEmail]);
+
+  const handleToggleSelfBooking = async (enabled: boolean) => {
+    setEnableSelfBooking(enabled);
+    if (!activeShopEmail) return;
+    try {
+      const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
+      await setDoc(settingRef, { enableSelfBooking: enabled }, { merge: true });
+    } catch (e) {
+      console.error("Error updating enableSelfBooking:", e);
+    }
+  };
+
+  const handleAddService = async (serviceData: Omit<ShopService, 'id'>) => {
+    if (!activeShopEmail) return;
+    try {
+      const newId = `srv-${Date.now()}`;
+      const docRef = doc(db, 'stores', activeShopEmail, 'services', newId);
+      await setDoc(docRef, serviceData);
+    } catch (e) {
+      console.error("Error adding service:", e);
+    }
+  };
+
+  const handleDeleteService = async (serviceId: string) => {
+    if (!activeShopEmail) return;
+    try {
+      const docRef = doc(db, 'stores', activeShopEmail, 'services', serviceId);
+      await deleteDoc(docRef);
+    } catch (e) {
+      console.error("Error deleting service:", e);
+    }
+  };
+
+  const handleUpdateService = async (updatedService: ShopService) => {
+    if (!activeShopEmail) return;
+    try {
+      const docRef = doc(db, 'stores', activeShopEmail, 'services', updatedService.id);
+      await setDoc(docRef, {
+        name: updatedService.name,
+        durationMinutes: Number(updatedService.durationMinutes),
+        price: updatedService.price !== undefined ? Number(updatedService.price) : 0,
+        category: updatedService.category || 'ทั่วไป'
+      }, { merge: true });
+    } catch (e) {
+      console.error("Error updating service:", e);
+    }
+  };
+
 
   // Synchronize browser/tab title, favicon, and apple-touch-icon links dynamically to the store name and logo
   useEffect(() => {
@@ -1440,8 +1534,27 @@ export default function App() {
     );
   }
 
+  if (isCustomerBookingMode) {
+    return (
+      <CustomerSelfBookingView
+        shopName={shopName}
+        shopLogoUrl={shopLogoUrl}
+        hairdressers={hairdressers}
+        bookings={bookings}
+        leaves={leaves}
+        services={services}
+        onAddBooking={handleAddBooking}
+        shopHolidays={shopHolidays}
+        shopOpenTime={shopOpenTime}
+        shopCloseTime={shopCloseTime}
+        enableSelfBooking={enableSelfBooking}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-bg-natural font-sans text-stone-800 pb-16 antialiased relative" id="barber-app-container">
+
       
       {/* Floating Active Toast Notification Banner */}
       {activeToast && (
@@ -1853,7 +1966,15 @@ export default function App() {
               shopCloseTime={shopCloseTime}
               onUpdateShopOpenTime={handleUpdateShopOpenTime}
               onUpdateShopCloseTime={handleUpdateShopCloseTime}
+              enableSelfBooking={enableSelfBooking}
+              onToggleSelfBooking={handleToggleSelfBooking}
+              services={services}
+              onAddService={handleAddService}
+              onDeleteService={handleDeleteService}
+              onUpdateService={handleUpdateService}
+              activeShopEmail={activeShopEmail}
             />
+
           ) : (
             <div className="max-w-md mx-auto bg-white rounded-3xl p-8 border border-stone-200 shadow-sm text-center space-y-6" id="settings-pin-lock-container">
               <div className="w-14 h-14 bg-brand/10 border border-brand/20 rounded-full flex items-center justify-center mx-auto text-3xl text-brand">

@@ -4,8 +4,9 @@
  */
 
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
-import { Hairdresser, StaffRecorder } from '../types';
-import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Hairdresser, StaffRecorder, ShopService } from '../types';
+import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link as LinkIcon, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle, Globe, Copy, ExternalLink, Check, Pencil, Save, X, Edit2 } from 'lucide-react';
+
 
 const PRESET_LOGOS = [
   {
@@ -56,6 +57,12 @@ interface SettingsProps {
   shopCloseTime?: string;
   onUpdateShopOpenTime: (openTime: string) => void;
   onUpdateShopCloseTime: (closeTime: string) => void;
+  enableSelfBooking: boolean;
+  onToggleSelfBooking: (enabled: boolean) => void;
+  services: ShopService[];
+  onAddService: (service: Omit<ShopService, 'id'>) => void;
+  onDeleteService: (id: string) => void;
+  activeShopEmail: string | null;
 }
 
 export default function Settings({
@@ -79,8 +86,15 @@ export default function Settings({
   shopOpenTime,
   shopCloseTime,
   onUpdateShopOpenTime,
-  onUpdateShopCloseTime
+  onUpdateShopCloseTime,
+  enableSelfBooking,
+  onToggleSelfBooking,
+  services,
+  onAddService,
+  onDeleteService,
+  activeShopEmail
 }: SettingsProps) {
+
   const [newHairdresserName, setNewHairdresserName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -371,8 +385,285 @@ export default function Settings({
     return () => clearTimeout(timer);
   };
 
+  // New Service states
+  const [newServiceName, setNewServiceName] = useState('');
+  const [newServiceDuration, setNewServiceDuration] = useState<number>(30);
+  const [newServicePrice, setNewServicePrice] = useState<string>('');
+  const [newServiceCategory, setNewServiceCategory] = useState<string>('ตัดผม');
+  const [serviceError, setServiceError] = useState<string | null>(null);
+  const [serviceSuccess, setServiceSuccess] = useState<string | null>(null);
+  const [copiedCustomerLink, setCopiedCustomerLink] = useState(false);
+
+  const handleAddServiceSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setServiceError(null);
+    setServiceSuccess(null);
+
+    const nameTrimed = newServiceName.trim();
+    if (!nameTrimed) {
+      setServiceError('กรุณากรอกชื่อบริการ');
+      return;
+    }
+
+    onAddService({
+      name: nameTrimed,
+      durationMinutes: Number(newServiceDuration) || 30,
+      price: newServicePrice ? Number(newServicePrice) : undefined,
+      category: newServiceCategory || 'ทั่วไป'
+    });
+
+    setNewServiceName('');
+    setNewServicePrice('');
+    setServiceSuccess(`เพิ่มบริการ "${nameTrimed}" เรียบร้อยแล้ว!`);
+    setTimeout(() => setServiceSuccess(null), 3000);
+  };
+
+  const getCustomerBookingLink = () => {
+    if (typeof window === 'undefined') return '';
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const shopParam = activeShopEmail ? `shop=${encodeURIComponent(activeShopEmail)}` : '';
+    return `${baseUrl}?${shopParam ? shopParam + '&' : ''}mode=booking`;
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
+
+      {/* Customer Self-Booking Portal Toggle & Link Settings Card */}
+      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="customer-self-booking-settings-card">
+        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+          <div>
+            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+              <Globe className="w-5 h-5 text-brand" /> ระบบลิงก์ให้ลูกค้าจองคิวเองออนไลน์
+            </h2>
+            <p className="text-stone-400 text-xs mt-1 font-light">
+              สามารถเปิดหรือปิดฟีเจอร์นี้ได้ตามความต้องการ หากเปิดใช้ จะสามารถส่งลิงก์ให้ลูกค้ากดเลือกบริการ ช่าง และรอบเวลาว่างได้เอง
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-6">
+          
+          {/* Main Toggle Switch */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-stone-50 border border-stone-200">
+            <div>
+              <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+                <span>🌐 สถานะระบบจองคิวออนไลน์สำหรับลูกค้า:</span>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                  enableSelfBooking ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'
+                }`}>
+                  {enableSelfBooking ? '✅ เปิดใช้งานอยู่' : '🔴 ปิดใช้งาน (ไม่ใช้)'}
+                </span>
+              </h3>
+              <p className="text-xs text-stone-500 mt-1">
+                {enableSelfBooking 
+                  ? 'ลูกค้าจะเห็นเฉพาะหน้ารายการบริการ คิวช่างแบบเรียลไทม์ และแบบฟอร์มกดลงคิวเอง' 
+                  : 'หากปิดไว้ ผู้เข้าชมผ่านลิงก์จะเห็นข้อความแจ้งว่าทางร้านปิดรับจองคิวออนไลน์ชั่วคราว'}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => onToggleSelfBooking(!enableSelfBooking)}
+              className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-sm flex items-center gap-2 active:scale-95 ${
+                enableSelfBooking
+                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
+                  : 'bg-stone-800 hover:bg-stone-900 text-stone-200'
+              }`}
+            >
+              <span>{enableSelfBooking ? 'สวิตช์: เปิดอยู่ (กดเพื่อปิด)' : 'สวิตช์: ปิดอยู่ (กดเพื่อเปิด)'}</span>
+            </button>
+          </div>
+
+          {/* Shareable Link Section */}
+          {enableSelfBooking && (
+            <div className="space-y-3 bg-[#FAF8F5] p-5 rounded-2xl border border-stone-250 animate-fade-in">
+              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                🔗 ลิงก์ตรงสำหรับส่งให้ลูกค้ากดจองคิวเอง:
+              </label>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getCustomerBookingLink()}
+                  className="flex-1 px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-stone-300 bg-white text-stone-800 select-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(getCustomerBookingLink());
+                    setCopiedCustomerLink(true);
+                    setTimeout(() => setCopiedCustomerLink(false), 3000);
+                  }}
+                  className="px-4 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  {copiedCustomerLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  <span>{copiedCustomerLink ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}</span>
+                </button>
+                <a
+                  href={getCustomerBookingLink()}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <ExternalLink className="w-4 h-4 text-amber-400" />
+                  <span>ทดลองเปิดดู</span>
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Service & Duration Settings Section */}
+          <div className="space-y-4 border-t border-stone-200 pt-5">
+            <div>
+              <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+                <Scissors className="w-4 h-4 text-brand" /> ตั้งค่ารายการบริการและระยะเวลา (สำหรับลูกค้าเลือกจอง)
+              </h3>
+              <p className="text-xs text-stone-500 mt-0.5">
+                กำหนดชื่อบริการ กำหนดระยะเวลา (นาที) และราคาบริการ เพื่อให้ระบบคำนวณรอบเวลาคิวได้อย่างถูกต้อง
+              </p>
+            </div>
+
+            {serviceSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>{serviceSuccess}</span>
+              </div>
+            )}
+
+            {serviceError && (
+              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-600" />
+                <span>{serviceError}</span>
+              </div>
+            )}
+
+            {/* Add Service Form */}
+            <form onSubmit={handleAddServiceSubmit} className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-3">
+              <span className="text-xs font-bold text-stone-800">➕ เพิ่มรายการบริการใหม่</span>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700">ชื่อบริการ *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น ตัดผมชาย + สระไดร์, ดัดวอลลุ่ม"
+                    value={newServiceName}
+                    onChange={(e) => setNewServiceName(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700">หมวดหมู่บริการ</label>
+                  <select
+                    value={newServiceCategory}
+                    onChange={(e) => setNewServiceCategory(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                  >
+                    <option value="ตัดผม">ตัดผม</option>
+                    <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
+                    <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
+                    <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
+                    <option value="อื่นๆ">อื่นๆ</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700">ระยะเวลาบริการ (นาที) *</label>
+                  <select
+                    value={newServiceDuration}
+                    onChange={(e) => setNewServiceDuration(Number(e.target.value))}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                  >
+                    <option value={30}>30 นาที</option>
+                    <option value={45}>45 นาที</option>
+                    <option value={60}>1 ชั่วโมง (60 นาที)</option>
+                    <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
+                    <option value={120}>2 ชั่วโมง (120 นาที)</option>
+                    <option value={180}>3 ชั่วโมง (180 นาที)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
+                  <input
+                    type="number"
+                    placeholder="เช่น 250, 1200"
+                    value={newServicePrice}
+                    onChange={(e) => setNewServicePrice(e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="pt-1 flex justify-end">
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>บันทึกเพิ่มบริการ</span>
+                </button>
+              </div>
+            </form>
+
+            {/* List of Existing Services */}
+            <div className="space-y-2">
+              <span className="text-xs font-bold text-stone-800">รายการบริการที่มีในระบบ ({services.length} รายการ):</span>
+              
+              {services.length === 0 ? (
+                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-center text-xs text-stone-500">
+                  ยังไม่มีการเพิ่มรายการบริการ กรุณากรอกเพิ่มด้านบน
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {services.map((srv) => (
+                    <div
+                      key={srv.id}
+                      className="p-3 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-2 shadow-2xs"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-stone-900">{srv.name}</span>
+                          {srv.category && (
+                            <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-bold">
+                              {srv.category}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1">
+                          <span className="font-mono font-bold text-amber-800">⏱️ {srv.durationMinutes} นาที</span>
+                          {srv.price !== undefined && srv.price > 0 && (
+                            <span className="font-mono font-bold text-emerald-700">฿{srv.price.toLocaleString()}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(`คุณต้องการลบบริการ "${srv.name}" ใช่หรือไม่?`)) {
+                            onDeleteService(srv.id);
+                          }
+                        }}
+                        className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                        title="ลบบริการนี้"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
       
       {/* Shop Name Configuration Card */}
       <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-name-settings-card">
