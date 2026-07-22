@@ -5,7 +5,7 @@
 
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import { Hairdresser, StaffRecorder, ShopService } from '../types';
-import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link as LinkIcon, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle, Globe, Copy, ExternalLink, Check, Pencil, Save, X, Edit2 } from 'lucide-react';
+import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link as LinkIcon, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle, Globe, Copy, ExternalLink, Check, Pencil, Save, X, Edit2, CreditCard, Smartphone } from 'lucide-react';
 
 
 const PRESET_LOGOS = [
@@ -59,6 +59,18 @@ interface SettingsProps {
   onUpdateShopCloseTime: (closeTime: string) => void;
   enableSelfBooking: boolean;
   onToggleSelfBooking: (enabled: boolean) => void;
+  requirePaymentSlip: boolean;
+  promptPayNumber: string;
+  promptPayName: string;
+  bankName: string;
+  depositAmount: number;
+  onUpdatePaymentSlipSettings: (
+    requireSlip: boolean,
+    promptPayNum: string,
+    promptPayName: string,
+    bankName: string,
+    depositAmount: number
+  ) => void;
   services: ShopService[];
   onAddService: (service: Omit<ShopService, 'id'>) => void;
   onDeleteService: (id: string) => void;
@@ -90,6 +102,12 @@ export default function Settings({
   onUpdateShopCloseTime,
   enableSelfBooking,
   onToggleSelfBooking,
+  requirePaymentSlip,
+  promptPayNumber,
+  promptPayName,
+  bankName,
+  depositAmount,
+  onUpdatePaymentSlipSettings,
   services,
   onAddService,
   onDeleteService,
@@ -152,6 +170,37 @@ export default function Settings({
   const [newPinWord, setNewPinWord] = useState(adminPin);
   const [pinChangeSuccess, setPinChangeSuccess] = useState(false);
   const [pinChangeError, setPinChangeError] = useState<string | null>(null);
+
+  // Payment Slip Settings local states
+  const [localRequireSlip, setLocalRequireSlip] = useState(requirePaymentSlip);
+  const [localPromptPayNum, setLocalPromptPayNum] = useState(promptPayNumber);
+  const [localPromptPayName, setLocalPromptPayName] = useState(promptPayName);
+  const [localBankName, setLocalBankName] = useState(bankName);
+  const [localDepositAmount, setLocalDepositAmount] = useState<string>(
+    depositAmount ? String(depositAmount) : '0'
+  );
+  const [paymentSlipSuccess, setPaymentSlipSuccess] = useState(false);
+
+  useEffect(() => {
+    setLocalRequireSlip(requirePaymentSlip);
+    setLocalPromptPayNum(promptPayNumber);
+    setLocalPromptPayName(promptPayName);
+    setLocalBankName(bankName);
+    setLocalDepositAmount(depositAmount ? String(depositAmount) : '0');
+  }, [requirePaymentSlip, promptPayNumber, promptPayName, bankName, depositAmount]);
+
+  const handleSavePaymentSlipSettings = (e: FormEvent) => {
+    e.preventDefault();
+    onUpdatePaymentSlipSettings(
+      localRequireSlip,
+      localPromptPayNum.trim(),
+      localPromptPayName.trim(),
+      localBankName.trim(),
+      Number(localDepositAmount) || 0
+    );
+    setPaymentSlipSuccess(true);
+    setTimeout(() => setPaymentSlipSuccess(false), 3000);
+  };
 
   // Shop Logo settings states
   const [logoInputTab, setLogoInputTab] = useState<'upload' | 'preset' | 'link'>('upload');
@@ -402,6 +451,7 @@ export default function Settings({
   const [editServiceDuration, setEditServiceDuration] = useState<number>(30);
   const [editServicePrice, setEditServicePrice] = useState<string>('');
   const [editServiceCategory, setEditServiceCategory] = useState<string>('ตัดผม');
+  const [deletingService, setDeletingService] = useState<ShopService | null>(null);
 
   const handleStartEditService = (srv: ShopService) => {
     setEditingServiceId(srv.id);
@@ -546,7 +596,120 @@ export default function Settings({
             </div>
           )}
 
-          {/* Service & Duration Settings Section */}
+          {/* Payment Slip / Deposit Settings Section */}
+          <div className="space-y-4 border-t border-stone-200 pt-5">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-emerald-600" />
+                  <span>ระบบบังคับโอนเงิน / แนบสลิปก่อนจองคิวออนไลน์ (Payment Slip Verification)</span>
+                </h3>
+                <p className="text-xs text-stone-500 mt-0.5">
+                  เลือกเปิดหรือปิดระบบบังคับให้ลูกค้าโอนเงินและแนบสลิปโอนเงินก่อนกดบันทึกการจองคิว
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const newStatus = !localRequireSlip;
+                  setLocalRequireSlip(newStatus);
+                  onUpdatePaymentSlipSettings(
+                    newStatus,
+                    localPromptPayNum.trim(),
+                    localPromptPayName.trim(),
+                    localBankName.trim(),
+                    Number(localDepositAmount) || 0
+                  );
+                }}
+                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1.5 active:scale-95 ${
+                  localRequireSlip
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
+                    : 'bg-stone-200 hover:bg-stone-300 text-stone-700'
+                }`}
+              >
+                <span>{localRequireSlip ? '🟢 เปิดบังคับโอนก่อนจอง (Active)' : '⚪ ปิด (จองได้ทันทีไม่ต้องโอน)'}</span>
+              </button>
+            </div>
+
+            {paymentSlipSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+                <span>บันทึกตั้งค่าระบบสลิปโอนเงินเรียบร้อยแล้ว!</span>
+              </div>
+            )}
+
+            {localRequireSlip && (
+              <form onSubmit={handleSavePaymentSlipSettings} className="p-4.5 bg-amber-50/60 rounded-2xl border border-amber-200/90 space-y-4 animate-fade-in">
+                <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2">
+                  <Smartphone className="w-4 h-4 text-amber-700" />
+                  <span>ข้อมูลบัญชีรับโอน / พรอมต์เพย์ สำหรับแสดงให้ลูกค้าโอนเงินก่อนกดบันทึกจองคิว</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">ชื่อธนาคาร / บัญชี *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น ธนาคารกสิกรไทย / PromptPay"
+                      value={localBankName}
+                      onChange={(e) => setLocalBankName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">เลขบัญชี / เบอร์ PromptPay *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น 081-234-5678 หรือ 123-4-56789-0"
+                      value={localPromptPayNum}
+                      onChange={(e) => setLocalPromptPayNum(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">ชื่อบัญชีผู้รับโอน *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น บจก. บาร์เบอร์โปร หรือ นายสมชาย ใจดี"
+                      value={localPromptPayName}
+                      onChange={(e) => setLocalPromptPayName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">
+                      จำนวนเงินมัดจำต่อคิว (บาท) <span className="text-stone-500 font-normal">(ใส่นก 0 = คิดตามราคารายการบริการ)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={localDepositAmount}
+                      onChange={(e) => setLocalDepositAmount(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-xs"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>บันทึกข้อมูลการโอนเงิน</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
           <div className="space-y-4 border-t border-stone-200 pt-5">
             <div>
               <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
@@ -778,11 +941,7 @@ export default function Settings({
                           </button>
                           <button
                             type="button"
-                            onClick={() => {
-                              if (window.confirm(`คุณต้องการลบบริการ "${srv.name}" ใช่หรือไม่?`)) {
-                                onDeleteService(srv.id);
-                              }
-                            }}
+                            onClick={() => setDeletingService(srv)}
                             className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
                             title="ลบบริการนี้"
                           >
@@ -795,6 +954,47 @@ export default function Settings({
                 </div>
               )}
             </div>
+
+            {/* Service Delete Confirmation Popup Modal */}
+            {deletingService && (
+              <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+                <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 space-y-4 text-center">
+                  <div className="w-14 h-14 bg-red-100 rounded-2xl border border-red-200 flex items-center justify-center text-red-600 mx-auto shadow-inner">
+                    <Trash2 className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-serif font-black text-stone-900">ยืนยันการลบบริการ</h3>
+                    <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
+                      คุณต้องการลบบริการ <span className="font-extrabold text-stone-900 bg-stone-100 px-1.5 py-0.5 rounded">"{deletingService.name}"</span> ออกจากระบบใช่หรือไม่?
+                    </p>
+                    <p className="text-[11px] text-red-500 font-bold mt-1">
+                      ⚠️ ข้อมูลบริการนี้จะถูกลบถาวร
+                    </p>
+                  </div>
+                  <div className="flex gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setDeletingService(null)}
+                      className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      ยกเลิก
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onDeleteService(deletingService.id);
+                        setDeletingService(null);
+                        setServiceSuccess('ลบบริการเรียบร้อยแล้ว!');
+                        setTimeout(() => setServiceSuccess(null), 3000);
+                      }}
+                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      ยืนยันลบบริการ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
           </div>
 

@@ -61,6 +61,11 @@ export default function App() {
   const [shopOpenTime, setShopOpenTime] = useState<string>('10:00');
   const [shopCloseTime, setShopCloseTime] = useState<string>('21:00');
   const [enableSelfBooking, setEnableSelfBooking] = useState<boolean>(true);
+  const [requirePaymentSlip, setRequirePaymentSlip] = useState<boolean>(false);
+  const [promptPayNumber, setPromptPayNumber] = useState<string>('');
+  const [promptPayName, setPromptPayName] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('');
+  const [depositAmount, setDepositAmount] = useState<number>(0);
   const [services, setServices] = useState<ShopService[]>(DEFAULT_SERVICES);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
@@ -561,6 +566,21 @@ export default function App() {
           } else {
             setEnableSelfBooking(true);
           }
+          if (data.requirePaymentSlip !== undefined) {
+            setRequirePaymentSlip(Boolean(data.requirePaymentSlip));
+          }
+          if (data.promptPayNumber) {
+            setPromptPayNumber(data.promptPayNumber);
+          }
+          if (data.promptPayName) {
+            setPromptPayName(data.promptPayName);
+          }
+          if (data.bankName) {
+            setBankName(data.bankName);
+          }
+          if (data.depositAmount !== undefined) {
+            setDepositAmount(Number(data.depositAmount));
+          }
           localStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
@@ -574,6 +594,11 @@ export default function App() {
           setShopOpenTime('10:00');
           setShopCloseTime('21:00');
           setEnableSelfBooking(true);
+          setRequirePaymentSlip(false);
+          setPromptPayNumber('');
+          setPromptPayName('');
+          setBankName('');
+          setDepositAmount(0);
         }
       }
     }, (error) => {
@@ -610,6 +635,34 @@ export default function App() {
       await setDoc(settingRef, { enableSelfBooking: enabled }, { merge: true });
     } catch (e) {
       console.error("Error updating enableSelfBooking:", e);
+    }
+  };
+
+  const handleUpdatePaymentSlipSettings = async (
+    requireSlip: boolean,
+    promptPayNum: string,
+    promptPayNm: string,
+    bankNm: string,
+    depositAmt: number
+  ) => {
+    setRequirePaymentSlip(requireSlip);
+    setPromptPayNumber(promptPayNum);
+    setPromptPayName(promptPayNm);
+    setBankName(bankNm);
+    setDepositAmount(depositAmt);
+
+    if (!activeShopEmail) return;
+    try {
+      const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
+      await setDoc(settingRef, {
+        requirePaymentSlip: requireSlip,
+        promptPayNumber: promptPayNum,
+        promptPayName: promptPayNm,
+        bankName: bankNm,
+        depositAmount: depositAmt
+      }, { merge: true });
+    } catch (e) {
+      console.error("Error updating payment slip settings:", e);
     }
   };
 
@@ -902,17 +955,22 @@ export default function App() {
         isInitialBookingsLoadRef.current = false;
       }
 
+      const todayStr = getTodayDateString();
       const list: Booking[] = [];
       snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as Booking);
+        const b = docSnap.data() as Booking;
+        if (b.date < todayStr) {
+          // Auto clear past day booking from Firestore to save space
+          deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', docSnap.id)).catch(err => {
+            console.warn("Auto cleanup past booking error:", err);
+          });
+        } else {
+          list.push(b);
+        }
       });
 
-      // Filter: only keep bookings today onwards (prune history auto)
-      const todayStr = getTodayDateString();
-      const currentAndUpcoming = list.filter(b => b.date >= todayStr);
-      
-      setBookings(currentAndUpcoming);
-      localStorage.setItem(localKey, JSON.stringify(currentAndUpcoming));
+      setBookings(list);
+      localStorage.setItem(localKey, JSON.stringify(list));
       setFirestoreError(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/bookings`, false);
@@ -938,14 +996,19 @@ export default function App() {
 
     const colRef = collection(db, 'stores', activeShopEmail, 'leaves');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
-      const list: LeaveRecord[] = [];
-      snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as LeaveRecord);
-      });
-      
-      // Auto-prune/reset leaves that are in the past
       const todayStr = getTodayDateString();
-      const activeLeaves = list.filter(l => l.date >= todayStr);
+      const activeLeaves: LeaveRecord[] = [];
+      snapshot.forEach((docSnap) => {
+        const l = docSnap.data() as LeaveRecord;
+        if (l.date < todayStr) {
+          // Auto clear past day leave record from Firestore
+          deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', docSnap.id)).catch(err => {
+            console.warn("Auto cleanup past leave record error:", err);
+          });
+        } else {
+          activeLeaves.push(l);
+        }
+      });
 
       // Sort leaves by date and starting time to showcase nicely
       activeLeaves.sort((a, b) => {
@@ -1548,6 +1611,11 @@ export default function App() {
         shopOpenTime={shopOpenTime}
         shopCloseTime={shopCloseTime}
         enableSelfBooking={enableSelfBooking}
+        requirePaymentSlip={requirePaymentSlip}
+        promptPayNumber={promptPayNumber}
+        promptPayName={promptPayName}
+        bankName={bankName}
+        depositAmount={depositAmount}
       />
     );
   }
@@ -1968,6 +2036,12 @@ export default function App() {
               onUpdateShopCloseTime={handleUpdateShopCloseTime}
               enableSelfBooking={enableSelfBooking}
               onToggleSelfBooking={handleToggleSelfBooking}
+              requirePaymentSlip={requirePaymentSlip}
+              promptPayNumber={promptPayNumber}
+              promptPayName={promptPayName}
+              bankName={bankName}
+              depositAmount={depositAmount}
+              onUpdatePaymentSlipSettings={handleUpdatePaymentSlipSettings}
               services={services}
               onAddService={handleAddService}
               onDeleteService={handleDeleteService}

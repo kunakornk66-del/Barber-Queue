@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { Booking, Hairdresser, LeaveRecord } from '../types';
-import { Trash2, Phone, Calendar, Clock, User, UserCheck, Search, Sparkles, Pencil, X, Check, AlertCircle, AlertTriangle, ChevronDown, Scissors, CheckCircle2 } from 'lucide-react';
+import { Trash2, Phone, Calendar, Clock, User, UserCheck, Search, Sparkles, Pencil, X, Check, AlertCircle, AlertTriangle, ChevronDown, Scissors, CheckCircle2, Smartphone } from 'lucide-react';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
 export const formatThaiTime = (timeStr: string) => {
@@ -82,9 +82,51 @@ export default function BookingList({
   const [selectedDateFilter, setSelectedDateFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'>('all');
   const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
+  const [now, setNow] = useState<Date>(new Date());
+
+  // Real-time ticker every 30 seconds for 60-minute countdown indicators
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Helper to check if a booking is within the next 60 minutes
+  const getUpcoming60MinAlert = (booking: Booking) => {
+    if (booking.status === 'completed' || booking.status === 'cancelled') return null;
+    
+    try {
+      const [year, month, day] = booking.date.split('-').map(Number);
+      const [hours, mins] = booking.startTime.split(':').map(Number);
+      if (!year || !month || !day || isNaN(hours) || isNaN(mins)) return null;
+
+      const bookingTime = new Date(year, month - 1, day, hours, mins);
+      const diffMs = bookingTime.getTime() - now.getTime();
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+
+      // Same date check
+      const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (booking.date !== nowDateStr) return null;
+
+      if (diffMins >= 0 && diffMins <= 60) {
+        if (diffMins === 0) {
+          return { isUpcoming: true, label: '⚡ ถึงเวลานัดหมายแล้ว (เตรียมให้บริการ)', mins: 0, isNow: true };
+        }
+        return { isUpcoming: true, label: `⚡ อีก ${diffMins} นาทีถึงคิว (เตรียมพร้อม)`, mins: diffMins, isNow: false };
+      }
+      if (diffMins < 0 && diffMins >= -30 && booking.status !== 'in-progress') {
+        return { isUpcoming: true, label: `🔥 ถึงเวลาแล้ว (${Math.abs(diffMins)} นาทีที่แล้ว)`, mins: diffMins, isNow: true };
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  };
   
   // State for confirm delete modal
   const [bookingToDelete, setBookingToDelete] = useState<Booking | null>(null);
+
+  // State for viewing payment slip modal
+  const [viewSlipUrl, setViewSlipUrl] = useState<string | null>(null);
 
   // State for editing a booking
   const [editingBooking, setEditingBooking] = useState<Booking | null>(null);
@@ -522,6 +564,39 @@ export default function BookingList({
         </div>
       )}
 
+      {/* Top Banner for Appointments starting within the next 60 minutes */}
+      {(() => {
+        const upcomingAlerts = bookings.filter(b => getUpcoming60MinAlert(b) !== null);
+        if (upcomingAlerts.length === 0) return null;
+        return (
+          <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white rounded-3xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md border border-amber-400 animate-fade-in" id="upcoming-60min-alert-banner">
+            <div className="flex gap-3 items-center">
+              <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-xs flex items-center justify-center text-xl shrink-0">
+                ⚡
+              </div>
+              <div>
+                <h4 className="text-xs sm:text-sm font-black flex items-center gap-2">
+                  <span>มี {upcomingAlerts.length} คิวนัดหมายที่จะถึงภายใน 60 นาทีนี้!</span>
+                  <span className="bg-white/30 text-white text-[10px] font-bold px-2 py-0.5 rounded-full animate-pulse">
+                    แจ้งเตือนทีมงานเตรียมตัว
+                  </span>
+                </h4>
+                <p className="text-[11px] text-amber-100 mt-0.5">
+                  โปรดเตรียมเก้าอี้และอุปกรณ์ทำผมให้พร้อมบริการก่อนลูกค้าเดินทางมาถึง
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap shrink-0">
+              {upcomingAlerts.slice(0, 3).map((b) => (
+                <span key={`banner-alert-${b.id}`} className="bg-stone-900 text-amber-300 font-bold text-[10px] px-2.5 py-1 rounded-xl shadow-xs border border-amber-400/30 font-mono">
+                  ⏱️ {formatThaiTime(b.startTime)} ({b.customerName})
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Grid of booking cards grouped by date & hairdresser */}
       <div className="space-y-6" id="booking-cards-container">
         {groupedBookings.length > 0 ? (
@@ -612,12 +687,32 @@ export default function BookingList({
                         {/* List of compact queue times inside hairdresser's box */}
                         <div className="flex-1 bg-white/50 max-h-[380px] overflow-y-auto divide-y divide-stone-100 px-5" id={`bookings-list-hd-${hdGroup.hairdresserId || 'anyone'}`}>
                           {hdGroup.bookings.map((booking) => {
+                            const alertInfo = getUpcoming60MinAlert(booking);
+                            const isUpcoming60Min = alertInfo !== null;
+
                             return (
                               <div
                                 key={booking.id}
                                 id={`booking-card-${booking.id}`}
-                                className="py-3 flex flex-col gap-1.5 transition-all text-xs"
+                                className={`py-3 px-3.5 my-1.5 flex flex-col gap-1.5 transition-all text-xs rounded-2xl ${
+                                  isUpcoming60Min
+                                    ? 'bg-gradient-to-r from-amber-500/15 via-amber-100/80 to-amber-50/60 border-2 border-amber-500/80 shadow-xs ring-2 ring-amber-300/40 relative'
+                                    : ''
+                                }`}
                               >
+                                {/* 60-Minute Alert Badge */}
+                                {alertInfo && (
+                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3 py-1 rounded-xl text-[10px] font-black shadow-2xs animate-pulse">
+                                    <span className="flex items-center gap-1.5 truncate text-white">
+                                      <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                                      <span>{alertInfo.label}</span>
+                                    </span>
+                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold shrink-0">
+                                      แจ้งเตือนทีมงานเตรียมพร้อม
+                                    </span>
+                                  </div>
+                                )}
+
                                 {/* Core detail line */}
                                 <div className="flex items-center justify-between gap-2.5">
                                   {/* Left side: Time and Name */}
@@ -672,9 +767,9 @@ export default function BookingList({
                                 </div>
 
                                 {/* Additional Row for Remarks and Recorder, cleanly aligned */}
-                                {(booking.remarks || booking.recordedBy) && (
-                                  <div className="flex items-center justify-between gap-1.5 text-[10px] pl-[84px]">
-                                    <div className="min-w-0 flex-1">
+                                {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
+                                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[10px] pl-[84px]">
+                                    <div className="min-w-0 flex-1 flex items-center gap-2">
                                       {booking.remarks ? (
                                         <span className="text-brand font-medium italic block truncate" title={booking.remarks}>
                                           💡 "{booking.remarks}"
@@ -683,8 +778,33 @@ export default function BookingList({
                                         <span className="text-stone-350 italic font-light">ไม่มีหมายเหตุ</span>
                                       )}
                                     </div>
-                                    <div className="shrink-0 text-[9px] text-stone-400 bg-stone-50 border border-stone-100 px-1.5 py-0.5 rounded-md">
-                                      ช่าง{booking.recordedBy}
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {booking.paymentSlipUrl && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
+                                          className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs active:scale-95"
+                                          title="คลิกเพื่อขยายดูรูปสลิปโอนเงิน"
+                                        >
+                                          <span>🧾 ดูสลิปโอนเงิน</span>
+                                        </button>
+                                      )}
+
+                                      {booking.recordedBy && (
+                                        <div>
+                                          {booking.recordedBy.includes('ลูกค้าจองเอง') ? (
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2 py-0.5 rounded-md shadow-2xs">
+                                              <Smartphone className="w-2.5 h-2.5 text-emerald-700" />
+                                              <span>📱 ลูกค้าจองเองออนไลน์</span>
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9px] font-medium text-stone-500 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-md">
+                                              ลงคิวโดย: {booking.recordedBy}
+                                            </span>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                 )}
@@ -1022,6 +1142,43 @@ export default function BookingList({
                 <Trash2 className="w-4 h-4" /> ยืนยันลบคิวจอง
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Payment Slip Modal Overlay */}
+      {viewSlipUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/80 backdrop-blur-sm animate-fade-in" id="view-slip-modal-overlay">
+          <div className="absolute inset-0" onClick={() => setViewSlipUrl(null)} />
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative z-10 space-y-4 text-center">
+            <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+              <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
+                <span>🧾 หลักฐานสลิปการโอนเงิน</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setViewSlipUrl(null)}
+                className="p-1.5 text-stone-400 hover:text-stone-700 rounded-xl hover:bg-stone-100 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-stone-100 rounded-2xl p-2 max-h-[70vh] overflow-auto flex items-center justify-center">
+              <img
+                src={viewSlipUrl}
+                alt="Payment Slip Full Size"
+                className="max-w-full max-h-[65vh] object-contain rounded-xl shadow-xs"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setViewSlipUrl(null)}
+              className="w-full py-3 bg-stone-900 hover:bg-stone-800 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+            >
+              ปิดหน้าต่าง
+            </button>
           </div>
         </div>
       )}

@@ -21,7 +21,12 @@ import {
   ChevronRight,
   RefreshCw,
   Share2,
-  Copy
+  Copy,
+  X,
+  CreditCard,
+  Upload,
+  Image as ImageIcon,
+  Receipt
 } from 'lucide-react';
 
 interface CustomerSelfBookingViewProps {
@@ -37,6 +42,11 @@ interface CustomerSelfBookingViewProps {
   services: ShopService[];
   onAddBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => Promise<void>;
   enableSelfBooking: boolean;
+  requirePaymentSlip?: boolean;
+  promptPayNumber?: string;
+  promptPayName?: string;
+  bankName?: string;
+  depositAmount?: number;
 }
 
 export default function CustomerSelfBookingView({
@@ -51,7 +61,12 @@ export default function CustomerSelfBookingView({
   leaves,
   services,
   onAddBooking,
-  enableSelfBooking
+  enableSelfBooking,
+  requirePaymentSlip = false,
+  promptPayNumber = '',
+  promptPayName = '',
+  bankName = '',
+  depositAmount = 0
 }: CustomerSelfBookingViewProps) {
   const [activeTab, setActiveTab] = useState<'book' | 'timeline'>('book');
 
@@ -76,6 +91,69 @@ export default function CustomerSelfBookingView({
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [remarks, setRemarks] = useState<string>('');
+
+  // Payment Slip State
+  const [paymentSlipUrl, setPaymentSlipUrl] = useState<string | null>(null);
+  const [paymentSlipUploading, setPaymentSlipUploading] = useState<boolean>(false);
+
+  const handleSlipFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMessage('กรุณาเลือกไฟล์รูปภาพสลิปโอนเงินเท่านั้น (JPG, PNG)');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMessage('ไฟล์รูปภาพสลิปมีขนาดใหญ่เกินไป (สูงสุด 10MB)');
+      return;
+    }
+
+    setPaymentSlipUploading(true);
+    setErrorMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 1000;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setPaymentSlipUrl(dataUrl);
+        } else {
+          setPaymentSlipUrl(event.target?.result as string);
+        }
+        setPaymentSlipUploading(false);
+      };
+      img.onerror = () => {
+        setPaymentSlipUrl(event.target?.result as string);
+        setPaymentSlipUploading(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => {
+      setErrorMessage('ไม่สามารถอ่านไฟล์ภาพสลิปโอนเงินได้');
+      setPaymentSlipUploading(false);
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Submission state
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -176,16 +254,58 @@ export default function CustomerSelfBookingView({
     return true;
   };
 
+  // Check if a barber is FULL DAY OFF on selectedDate
+  const isBarberFullDayOff = (barber: Hairdresser) => {
+    if (barber.onLeave) return true;
+
+    const barberLeaves = leaves.filter(l => l.hairdresserId === barber.id && l.date === selectedDate);
+    if (barberLeaves.length === 0) return false;
+
+    const [openH, openM] = (shopOpenTime || '10:00').split(':').map(Number);
+    const shopOpenMins = openH * 60 + openM;
+    const [closeH, closeM] = (shopCloseTime || '21:00').split(':').map(Number);
+    const shopCloseMins = closeH * 60 + closeM;
+
+    for (const leave of barberLeaves) {
+      const lStart = timeToMinutes(leave.startTime);
+      const lEnd = timeToMinutes(leave.endTime);
+      // If leave covers full operating hours or whole day
+      if (lStart <= shopOpenMins && lEnd >= shopCloseMins) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+
+  // Get leave summary info for a barber on selectedDate
+  const getBarberLeaveSummary = (barber: Hairdresser) => {
+    if (barber.onLeave) return { isFullDay: true, label: 'หยุดงาน' };
+
+    const barberLeaves = leaves.filter(l => l.hairdresserId === barber.id && l.date === selectedDate);
+    if (barberLeaves.length === 0) return null;
+
+    if (isBarberFullDayOff(barber)) {
+      return { isFullDay: true, label: 'หยุดงานทั้งวัน' };
+    }
+
+    const firstLeave = barberLeaves[0];
+    const label = `ลาช่วง ${formatThaiTime(firstLeave.startTime)} - ${formatThaiTime(firstLeave.endTime)}`;
+    return { isFullDay: false, label, leaves: barberLeaves };
+  };
+
   // Determine if a slot is available
   const isSlotAvailable = (slotTime: string) => {
     if (isSelectedDateHoliday()) return false;
 
     if (selectedBarberId) {
       // Specific barber chosen
+      const barber = hairdressers.find(h => h.id === selectedBarberId);
+      if (barber && isBarberFullDayOff(barber)) return false;
       return checkBarberAvailableForSlot(selectedBarberId, slotTime, serviceDuration);
     } else {
-      // "ช่างคนไหนก็ได้" (Any Barber) -> Available if AT LEAST ONE active barber is free
-      const activeBarbers = hairdressers.filter(h => !h.onLeave);
+      // "ช่างคนไหนก็ได้" (Any Barber) -> Available if AT LEAST ONE active non-full-off barber is free
+      const activeBarbers = hairdressers.filter(h => !isBarberFullDayOff(h));
       if (activeBarbers.length === 0) return false;
 
       return activeBarbers.some(b => checkBarberAvailableForSlot(b.id, slotTime, serviceDuration));
@@ -194,7 +314,7 @@ export default function CustomerSelfBookingView({
 
   // Get available barbers for a specific slot time
   const getAvailableBarbersForSlot = (slotTime: string) => {
-    const activeBarbers = hairdressers.filter(h => !h.onLeave);
+    const activeBarbers = hairdressers.filter(h => !isBarberFullDayOff(h));
     return activeBarbers.filter(b => checkBarberAvailableForSlot(b.id, slotTime, serviceDuration));
   };
 
@@ -235,6 +355,11 @@ export default function CustomerSelfBookingView({
       return;
     }
 
+    if (requirePaymentSlip && !paymentSlipUrl) {
+      setErrorMessage('กรุณาโอนเงินและแนบสลิปโอนเงินก่อนกดบันทึกการจองคิว');
+      return;
+    }
+
     // Calculate end time based on service duration
     const startMins = timeToMinutes(selectedStartTime);
     const endMins = startMins + serviceDuration;
@@ -272,6 +397,9 @@ export default function CustomerSelfBookingView({
         customerName: trimmedName,
         customerPhone: trimmedPhone,
         remarks: `${selectedService.name}${remarks.trim() ? ` (${remarks.trim()})` : ''}`,
+        serviceName: selectedService.name,
+        servicePrice: selectedService.price,
+        paymentSlipUrl: paymentSlipUrl || undefined,
         recordedBy: 'ลูกค้าจองเองออนไลน์',
         isAnyBarber: isAny,
         status: 'waiting' as const
@@ -467,6 +595,17 @@ export default function CustomerSelfBookingView({
                   </div>
                 </div>
 
+                {/* Polite Punctuality Reminder inside Receipt */}
+                <div className="bg-amber-50/90 border border-amber-200/90 p-4 rounded-2xl text-left space-y-1 text-xs text-stone-700">
+                  <p className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>ข้อแนะนำในการเดินทางมารับบริการ</span>
+                  </p>
+                  <p className="leading-relaxed">
+                    กรุณาเดินทางมาถึงร้านล่วงหน้าก่อนเวลานัด <strong>5–10 นาที</strong> หากท่านเดินทางมาล่าช้าเกิน <strong>15 นาที</strong> ทางร้านขออนุญาตสลับคิวให้ลูกค้ารอบถัดไปก่อน เพื่อรักษาเวลาในการให้บริการลูกค้าทุกท่าน ขอขอบพระคุณเป็นอย่างยิ่งค่ะ/ครับ
+                  </p>
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-3 pt-2">
                   <button
                     type="button"
@@ -490,6 +629,24 @@ export default function CustomerSelfBookingView({
             ) : (
               /* Booking Form Container */
               <form onSubmit={handleSubmitBooking} className="space-y-6">
+
+                {/* Polite Late Arrival Policy Banner */}
+                <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 flex items-start gap-3 shadow-xs">
+                  <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300/60 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs text-stone-700 leading-relaxed space-y-1">
+                    <p className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                      📌 ข้อแนะนำและเงื่อนไขการเข้ารับบริการ:
+                    </p>
+                    <p>
+                      เพื่อความสะดวกและส่งมอบบริการที่ประณีตที่สุดแก่ทุกท่าน กรุณาเดินทางมาถึงร้านก่อนเวลานัดหมายประมาณ <strong>5–10 นาที</strong>
+                    </p>
+                    <p className="text-[11px] text-stone-600 font-medium">
+                      *หากท่านมาล่าช้าเกินกว่าเวลานัดหมายเกิน <strong>15 นาที</strong> ทางร้านขออนุญาตสลับคิวให้ลูกค้ารอบถัดไปก่อน เพื่อรักษามาตรฐานและเวลาให้บริการแก่ลูกค้าทุกท่าน ขอขอบพระคุณในความร่วมมือค่ะ/ครับ
+                    </p>
+                  </div>
+                </div>
                 
                 {errorMessage && (
                   <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-shake">
@@ -600,34 +757,51 @@ export default function CustomerSelfBookingView({
                     {/* Barber Cards */}
                     {hairdressers.map((barber) => {
                       const isSelected = selectedBarberId === barber.id;
+                      const isFullOff = isBarberFullDayOff(barber);
+                      const leaveSummary = getBarberLeaveSummary(barber);
+                      const hasPartialLeave = !isFullOff && leaveSummary !== null;
+
                       return (
                         <button
                           key={barber.id}
                           type="button"
-                          disabled={barber.onLeave}
+                          disabled={isFullOff}
                           onClick={() => setSelectedBarberId(barber.id)}
                           className={`p-3.5 rounded-2xl border transition-all text-left flex flex-col justify-between gap-2 cursor-pointer active:scale-95 ${
-                            barber.onLeave
-                              ? 'bg-stone-100 border-stone-200 text-stone-400 opacity-60 cursor-not-allowed'
+                            isFullOff
+                              ? 'bg-rose-50/80 border-rose-300 text-rose-800 opacity-90 cursor-not-allowed shadow-2xs'
                               : isSelected
                               ? 'bg-stone-900 text-white border-stone-900 font-bold shadow-sm'
+                              : hasPartialLeave
+                              ? 'bg-amber-50/80 hover:bg-amber-100/80 border-amber-300 text-stone-900 shadow-2xs'
                               : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-800'
                           }`}
                         >
                           <div className="flex items-center justify-between">
                             <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs ${
-                              isSelected ? 'bg-amber-500 text-stone-950' : 'bg-stone-200 text-stone-700'
+                              isFullOff ? 'bg-rose-100 text-rose-700' : isSelected ? 'bg-amber-500 text-stone-950' : 'bg-stone-200 text-stone-700'
                             }`}>
                               <Scissors className="w-4 h-4" />
                             </div>
                             {isSelected && <Check className="w-4 h-4 text-amber-400 font-black" />}
+                            {isFullOff && <X className="w-4 h-4 text-rose-600 font-black" />}
                           </div>
                           <div>
                             <p className="text-xs font-bold truncate">ช่าง{barber.name}</p>
-                            <p className={`text-[10px] mt-0.5 ${
-                              barber.onLeave ? 'text-rose-500 font-bold' : isSelected ? 'text-stone-300' : 'text-emerald-600 font-bold'
+                            <p className={`text-[10px] mt-0.5 font-black ${
+                              isFullOff
+                                ? 'text-rose-600 bg-rose-100 px-1.5 py-0.5 rounded-md inline-block'
+                                : isSelected
+                                ? 'text-stone-300'
+                                : hasPartialLeave
+                                ? 'text-amber-800 bg-amber-100/90 px-1.5 py-0.5 rounded-md inline-block'
+                                : 'text-emerald-600'
                             }`}>
-                              {barber.onLeave ? 'ลางาน' : 'พร้อมบริการ'}
+                              {isFullOff 
+                                ? 'หยุดงาน' 
+                                : hasPartialLeave 
+                                ? `⚠️ ${leaveSummary?.label}` 
+                                : 'พร้อมบริการ'}
                             </p>
                           </div>
                         </button>
@@ -680,8 +854,8 @@ export default function CustomerSelfBookingView({
                         <span className="text-xs font-bold text-stone-700">
                           รอบเวลาที่เปิดให้บริการ ({formatThaiLongDate(selectedDate)}):
                         </span>
-                        <span className="text-[10px] text-stone-500">
-                          🟢 สีเขียว = ว่างกดจองได้ | ⚪ สีเทา = คิวเต็ม/ไม่ว่าง
+                        <span className="text-[10px] font-bold text-stone-600">
+                          🟢 สีเขียว = ว่างกดจองได้ | 🔴 สีแดง = ไม่ว่าง
                         </span>
                       </div>
 
@@ -697,17 +871,20 @@ export default function CustomerSelfBookingView({
                               type="button"
                               disabled={!available}
                               onClick={() => setSelectedStartTime(slotTime)}
-                              className={`py-2.5 px-2 rounded-xl border text-xs font-mono font-bold transition-all cursor-pointer active:scale-95 flex flex-col items-center justify-center gap-0.5 ${
+                              className={`py-2.5 px-2 rounded-xl border text-xs font-mono transition-all cursor-pointer active:scale-95 flex flex-col items-center justify-center gap-0.5 ${
                                 !available
-                                  ? 'bg-stone-100 border-stone-200 text-stone-400 opacity-50 cursor-not-allowed line-through'
+                                  ? 'bg-rose-50 border-rose-300 text-rose-800 font-extrabold cursor-not-allowed shadow-2xs'
                                   : isSelected
                                   ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300 shadow-md font-black'
-                                  : 'bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-emerald-900'
+                                  : 'bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200 text-emerald-900 font-bold'
                               }`}
                             >
-                              <span>{slotTime} น.</span>
-                              <span className={`text-[9px] font-sans ${isSelected ? 'text-emerald-100' : available ? 'text-emerald-700' : 'text-stone-400'}`}>
-                                {isSelected ? 'เลือกแล้ว' : available ? 'ว่าง' : 'เต็ม'}
+                              <span className="flex items-center justify-center gap-1">
+                                {!available && <X className="w-3.5 h-3.5 text-rose-600 shrink-0 stroke-[3]" />}
+                                <span className={!available ? 'text-rose-900 font-bold' : ''}>{slotTime} น.</span>
+                              </span>
+                              <span className={`text-[9px] font-sans font-bold ${isSelected ? 'text-emerald-100' : available ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                {isSelected ? 'เลือกแล้ว' : available ? 'ว่าง' : 'ไม่ว่าง'}
                               </span>
                             </button>
                           );
@@ -771,7 +948,141 @@ export default function CustomerSelfBookingView({
                   </div>
                 </div>
 
-                {/* STEP 5: SUBMIT BUTTON */}
+                {/* STEP 5: PAYMENT SLIP ATTACHMENT (IF REQUIRED BY SHOP) */}
+                {requirePaymentSlip && (
+                  <div className="bg-white rounded-3xl border border-stone-200/80 shadow-sm p-6 space-y-4">
+                    <div className="flex items-center gap-2 border-b border-stone-100 pb-3">
+                      <div className="w-7 h-7 rounded-xl bg-amber-500/15 text-amber-700 flex items-center justify-center font-black text-xs">
+                        5
+                      </div>
+                      <div>
+                        <h2 className="text-base font-bold text-stone-900 flex items-center gap-1.5">
+                          <CreditCard className="w-4.5 h-4.5 text-amber-600" />
+                          <span>ชำระเงินมัดจำ / แนบสลิปโอนเงิน</span>
+                          <span className="text-red-500 text-xs">*</span>
+                        </h2>
+                        <p className="text-[11px] text-stone-500">
+                          ทางร้านเปิดระบบชำระเงินมัดจำล่วงหน้าเพื่อยืนยันคิวจอง
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Shop Bank / PromptPay Details */}
+                    <div className="bg-amber-50/70 border border-amber-200 p-4 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-extrabold text-amber-900 flex items-center gap-1">
+                          <Receipt className="w-4 h-4 text-amber-700" /> บัญชีสำหรับโอนเงิน:
+                        </span>
+                        <span className="text-[11px] font-bold text-stone-600 bg-white px-2 py-0.5 rounded-lg border border-amber-200">
+                          {bankName || 'PromptPay / ธนาคาร'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-white p-3.5 rounded-xl border border-amber-200/70">
+                        <div>
+                          <span className="text-[10px] text-stone-400 font-bold block">เลขบัญชี / เบอร์ PromptPay:</span>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="font-mono text-sm font-black text-stone-900 select-all">
+                              {promptPayNumber || 'ติดต่อทางร้าน'}
+                            </span>
+                            {promptPayNumber && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(promptPayNumber);
+                                  alert('คัดลอกเลขบัญชีเรียบร้อยแล้ว');
+                                }}
+                                className="p-1 hover:bg-stone-100 rounded text-stone-500 cursor-pointer"
+                                title="คัดลอกเลขบัญชี"
+                              >
+                                <Copy className="w-3.5 h-3.5 text-amber-600" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] text-stone-400 font-bold block">ชื่อบัญชี:</span>
+                          <span className="font-bold text-stone-800 text-xs mt-0.5 block">
+                            {promptPayName || shopName}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 border-t border-amber-200/60 text-xs">
+                        <span className="text-stone-600 font-bold">ยอดเงินมัดจำชำระ:</span>
+                        <span className="font-serif font-black text-emerald-700 text-sm">
+                          {depositAmount && depositAmount > 0 
+                            ? `฿${depositAmount.toLocaleString()}` 
+                            : (selectedService?.price ? `฿${selectedService.price.toLocaleString()} (ตามราคาบริการ)` : 'ตามตกลง')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Upload Slip Box */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-stone-700 flex items-center gap-1">
+                        <ImageIcon className="w-4 h-4 text-amber-600" /> แนบสลิปโอนเงินของคุณ <span className="text-red-500">*</span>
+                      </label>
+
+                      {paymentSlipUrl ? (
+                        <div className="relative p-3 bg-stone-50 border border-emerald-300 rounded-2xl flex items-center justify-between gap-3 animate-fade-in">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <img
+                              src={paymentSlipUrl}
+                              alt="Payment Slip Preview"
+                              className="w-16 h-16 object-cover rounded-xl border border-stone-200 shrink-0"
+                            />
+                            <div className="min-w-0">
+                              <p className="text-xs font-black text-emerald-700 flex items-center gap-1">
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                                <span>แนบสลิปเรียบร้อยแล้ว</span>
+                              </p>
+                              <p className="text-[11px] text-stone-500 truncate mt-0.5">
+                                คลิกปุ่มลบเพื่อเลือกสลิปใหม่
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setPaymentSlipUrl(null)}
+                            className="p-2 hover:bg-rose-100 text-rose-600 rounded-xl transition-all cursor-pointer shrink-0"
+                            title="ลบและแนบสลิปใหม่"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="border-2 border-dashed border-stone-300 hover:border-amber-500 bg-stone-50/70 hover:bg-amber-50/30 p-6 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer transition-all text-center group">
+                          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center group-hover:scale-110 transition-transform">
+                            {paymentSlipUploading ? (
+                              <RefreshCw className="w-5 h-5 animate-spin text-amber-600" />
+                            ) : (
+                              <Upload className="w-5 h-5 text-amber-600" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-xs font-extrabold text-stone-800">
+                              {paymentSlipUploading ? 'กำลังประมวลผลไฟล์สลิป...' : 'คลิกเพื่อเลือกไฟล์รูปภาพสลิปโอนเงิน'}
+                            </p>
+                            <p className="text-[10px] text-stone-400 mt-0.5">
+                              รองรับไฟล์รูปภาพ JPG, PNG (ขนาดไม่เกิน 10MB)
+                            </p>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleSlipFileUpload}
+                            className="hidden"
+                            disabled={paymentSlipUploading}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 6: SUBMIT BUTTON */}
                 <div className="bg-stone-900 text-white rounded-3xl p-6 shadow-xl space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-800 pb-4">
                     <div>
@@ -847,6 +1158,10 @@ export default function CustomerSelfBookingView({
             {/* Barber Schedules Cards */}
             <div className="space-y-4">
               {hairdressers.map((barber) => {
+                const isBarberFullOff = isBarberFullDayOff(barber);
+                const leaveSummary = getBarberLeaveSummary(barber);
+                const hasPartialLeave = !isBarberFullOff && leaveSummary !== null;
+
                 const barberBookings = bookings.filter(
                   b => b.hairdresserId === barber.id && b.date === selectedDate && b.status !== 'cancelled'
                 );
@@ -866,17 +1181,25 @@ export default function CustomerSelfBookingView({
                         </div>
                       </div>
 
-                      <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
-                        barber.onLeave ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
+                      <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                        isBarberFullOff
+                          ? 'bg-rose-100 text-rose-700 border-rose-300'
+                          : hasPartialLeave
+                          ? 'bg-amber-100 text-amber-800 border-amber-300'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
                       }`}>
-                        {barber.onLeave ? 'ลางาน' : 'เปิดรับคิว'}
+                        {isBarberFullOff
+                          ? 'หยุดงานทั้งวัน'
+                          : hasPartialLeave
+                          ? leaveSummary?.label
+                          : 'เปิดรับคิว'}
                       </span>
                     </div>
 
                     {/* Timeline Slot Chips */}
                     <div className="flex flex-wrap gap-1.5 pt-2 border-t border-stone-200/60">
                       {allTimeSlots.map((slot) => {
-                        const isFree = checkBarberAvailableForSlot(barber.id, slot, slotDuration);
+                        const isFree = !isBarberFullOff && checkBarberAvailableForSlot(barber.id, slot, slotDuration);
                         const matchedBooking = barberBookings.find(b => {
                           const sM = timeToMinutes(b.startTime);
                           const eM = timeToMinutes(b.endTime);
@@ -888,16 +1211,15 @@ export default function CustomerSelfBookingView({
                           <div
                             key={slot}
                             className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold flex items-center gap-1 border ${
-                              matchedBooking
-                                ? 'bg-amber-500/20 text-amber-900 border-amber-300'
-                                : isFree
+                              isFree
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                : 'bg-stone-200 text-stone-500 border-stone-300'
+                                : 'bg-rose-50 text-rose-800 border-rose-300 font-bold'
                             }`}
                           >
-                            <span>{slot}</span>
-                            <span className="text-[8px] font-sans">
-                              {matchedBooking ? 'มีคิว' : isFree ? 'ว่าง' : 'ไม่ว่าง'}
+                            {!isFree && <X className="w-3 h-3 text-rose-600 shrink-0 stroke-[3]" />}
+                            <span className={!isFree ? 'text-rose-900' : ''}>{slot}</span>
+                            <span className="text-[8px] font-sans font-bold">
+                              {isFree ? 'ว่าง' : 'ไม่ว่าง'}
                             </span>
                           </div>
                         );

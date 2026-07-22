@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Booking, Hairdresser } from '../types';
-import { Clock, Volume2, Maximize2, Minimize2, Calendar, Scissors, User, ArrowRight, CheckCircle2, Moon, Sun, RotateCw } from 'lucide-react';
+import { Clock, Volume2, Maximize2, Minimize2, Calendar, Scissors, User, ArrowRight, CheckCircle2, Moon, Sun, RotateCw, Sparkles, Bell, Radio } from 'lucide-react';
 import { formatThaiTime } from './BookingList';
 
 interface DisplayViewProps {
@@ -33,6 +33,10 @@ export default function DisplayView({
   const [politeSuffix, setPoliteSuffix] = useState<string>('ค่ะ');
   const [speakingId, setSpeakingId] = useState<string | null>(null);
 
+  // Recently updated bookings animation state
+  const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<string>>(new Set());
+  const prevBookingsRef = useRef<Booking[]>(bookings);
+
   // Theme state for display monitor
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'auto'>('auto');
   const [autoCycle, setAutoCycle] = useState<boolean>(false);
@@ -45,6 +49,52 @@ export default function DisplayView({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Track queue updates dynamically to trigger TV animation on newly updated queue items
+  useEffect(() => {
+    if (!prevBookingsRef.current) {
+      prevBookingsRef.current = bookings;
+      return;
+    }
+
+    const prevMap = new Map(prevBookingsRef.current.map(b => [b.id, b]));
+    const newlyChanged = new Set<string>();
+
+    bookings.forEach(b => {
+      const prev = prevMap.get(b.id);
+      if (!prev) {
+        // Brand new booking added
+        newlyChanged.add(b.id);
+      } else if (
+        prev.status !== b.status ||
+        prev.startTime !== b.startTime ||
+        prev.endTime !== b.endTime ||
+        prev.hairdresserId !== b.hairdresserId ||
+        prev.customerName !== b.customerName
+      ) {
+        // Updated existing booking
+        newlyChanged.add(b.id);
+      }
+    });
+
+    if (newlyChanged.size > 0) {
+      setRecentlyUpdatedIds(prev => new Set([...prev, ...newlyChanged]));
+
+      // Clear the animation highlight badge after 10 seconds
+      const clearTimer = setTimeout(() => {
+        setRecentlyUpdatedIds(prev => {
+          const nextSet = new Set(prev);
+          newlyChanged.forEach(id => nextSet.delete(id));
+          return nextSet;
+        });
+      }, 10000);
+
+      prevBookingsRef.current = bookings;
+      return () => clearTimeout(clearTimer);
+    }
+
+    prevBookingsRef.current = bookings;
+  }, [bookings]);
 
   // Theme auto cycle switcher (toggles between light and dark every 30 seconds if auto cycle is active)
   useEffect(() => {
@@ -257,43 +307,66 @@ export default function DisplayView({
         <div className={`flex flex-col lg:flex-row items-center justify-between gap-6 border-b pb-5 transition-colors duration-300 ${
           isDark ? 'border-stone-800' : 'border-stone-200'
         }`}>
-          {/* Shop Brand & Logo */}
-          <div className="flex items-center gap-4 text-center lg:text-left">
-            {shopLogoUrl ? (
-              <img 
-                src={shopLogoUrl} 
-                alt={shopName} 
-                referrerPolicy="no-referrer"
-                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-sm border shrink-0 ${
-                  isDark ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'
-                }`}
-              />
-            ) : (
-              <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border flex items-center justify-center text-3xl sm:text-4xl shadow-sm shrink-0 ${
-                isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-brand/10 border-brand/20'
-              }`}>
-                💈
-              </div>
-            )}
+          {/* Shop Brand & Logo - TV Big Screen High Definition Showcase */}
+          <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+            <div className="relative group shrink-0">
+              {/* Glowing ambient light behind logo */}
+              <div className={`absolute -inset-2 rounded-3xl blur-xl opacity-75 transition-all duration-500 ${
+                isDark ? 'bg-gradient-to-r from-amber-500/30 via-emerald-500/20 to-amber-600/30' : 'bg-gradient-to-r from-amber-300/40 via-brand/30 to-amber-400/40'
+              }`}></div>
+
+              {shopLogoUrl ? (
+                <div className={`relative p-1.5 rounded-3xl border-2 shadow-2xl transition-all duration-300 animate-logo-glow ${
+                  isDark ? 'bg-stone-900 border-amber-500/60 shadow-amber-500/20' : 'bg-white border-brand/60 shadow-brand/20'
+                }`}>
+                  <img 
+                    src={shopLogoUrl} 
+                    alt={shopName} 
+                    referrerPolicy="no-referrer"
+                    className="w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-2xl object-cover"
+                  />
+                </div>
+              ) : (
+                <div className={`relative w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-3xl border-2 flex flex-col items-center justify-center shadow-2xl transition-all duration-300 animate-logo-glow ${
+                  isDark 
+                    ? 'bg-gradient-to-br from-stone-900 via-amber-950/60 to-stone-900 border-amber-500/60 text-amber-400 shadow-amber-500/20' 
+                    : 'bg-gradient-to-br from-amber-50 via-white to-amber-100 border-brand text-brand shadow-brand/20'
+                }`}>
+                  <span className="text-4xl sm:text-5xl drop-shadow-md">💈</span>
+                  <span className="text-[10px] font-black uppercase tracking-wider mt-1 font-mono">BARBER</span>
+                </div>
+              )}
+            </div>
+
             <div>
-              <div className="flex flex-wrap items-center gap-2 justify-center lg:justify-start">
-                <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-serif font-black tracking-tight ${
-                  isDark ? 'text-stone-100' : 'text-stone-900'
+              <div className="flex flex-wrap items-center gap-2.5 justify-center sm:justify-start">
+                <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-serif font-black tracking-tight leading-none ${
+                  isDark ? 'text-stone-100 drop-shadow-md' : 'text-stone-900'
                 }`}>
                   {shopName}
                 </h1>
-                <span className={`text-xs px-3 py-1 rounded-full font-sans font-extrabold tracking-wide shadow-xs ${
+                <span className={`text-xs px-3.5 py-1 rounded-full font-sans font-extrabold tracking-wider shadow-md animate-pulse ${
                   isDark ? 'bg-amber-500 text-stone-950' : 'bg-brand text-white'
                 }`}>
                   DISPLAY BOARD
                 </span>
               </div>
-              <p className={`text-xs sm:text-sm font-medium mt-1 flex items-center justify-center lg:justify-start gap-1.5 ${
-                isDark ? 'text-stone-400' : 'text-stone-500'
-              }`}>
-                <Calendar className={`w-4 h-4 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
-                <span>{getThaiDateLongString()}</span>
-              </p>
+
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mt-2.5">
+                <p className={`text-xs sm:text-sm font-bold flex items-center gap-1.5 ${
+                  isDark ? 'text-amber-300' : 'text-stone-600'
+                }`}>
+                  <Calendar className={`w-4 h-4 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
+                  <span>{getThaiDateLongString()}</span>
+                </p>
+
+                <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                  isDark ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                }`}>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  <span>ร้านเปิดบริการ ({shopOpenTime} - {shopCloseTime} น.)</span>
+                </span>
+              </div>
             </div>
           </div>
 
@@ -483,17 +556,31 @@ export default function DisplayView({
             <div className="grid grid-cols-1 gap-6" id="active-queues-grid">
               {activeBookings.map((booking) => {
                 const isSpeaking = speakingId === booking.id;
+                const isRecentlyUpdated = recentlyUpdatedIds.has(booking.id);
+
                 return (
                   <div 
                     key={booking.id}
-                    className={`relative overflow-hidden border-2 rounded-3xl p-6 sm:p-8 shadow-xl transition-all duration-300 flex flex-col justify-between gap-6 group ${
+                    className={`relative overflow-hidden border-2 rounded-3xl p-6 sm:p-8 shadow-2xl transition-all duration-500 flex flex-col justify-between gap-6 group animate-highlight-glow ${
+                      isRecentlyUpdated ? 'animate-update-flash ring-4 ring-amber-400 border-amber-400' : ''
+                    } ${
                       isDark
-                        ? 'bg-stone-900/90 border-emerald-500/90 shadow-emerald-950/40 text-stone-100'
-                        : 'bg-white border-emerald-500/80 shadow-lg text-stone-900'
+                        ? 'bg-stone-900/95 border-emerald-500/90 shadow-emerald-950/50 text-stone-100'
+                        : 'bg-white border-emerald-500/80 shadow-emerald-200/60 text-stone-900'
                     }`}
                   >
                     {/* Glowing highlight ribbon */}
                     <div className="absolute top-0 left-0 w-3.5 h-full bg-emerald-500"></div>
+
+                    {/* Recently updated notification floating pill */}
+                    {isRecentlyUpdated && (
+                      <div className="absolute top-4 right-4 z-20">
+                        <span className="px-3.5 py-1 bg-gradient-to-r from-amber-500 via-rose-500 to-amber-500 text-white font-black text-xs rounded-full shadow-lg border border-amber-300 animate-bounce flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                          <span>✨ อัปเดตคิวเรียบร้อย</span>
+                        </span>
+                      </div>
+                    )}
 
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pl-3.5">
                       <div>
@@ -676,15 +763,27 @@ export default function DisplayView({
           {upcomingBookings.length > 0 ? (
             <div className="space-y-4" id="upcoming-queues-list">
               {upcomingBookings.slice(0, 6).map((booking, index) => {
+                const isRecentlyUpdated = recentlyUpdatedIds.has(booking.id);
+
                 return (
                   <div 
                     key={booking.id}
-                    className={`border-2 rounded-3xl p-6 shadow-xs flex items-center justify-between gap-4 transition-all duration-300 ${
+                    className={`relative overflow-hidden border-2 rounded-3xl p-6 shadow-md flex items-center justify-between gap-4 transition-all duration-500 ${
+                      isRecentlyUpdated ? 'animate-update-flash ring-4 ring-amber-400 border-amber-400' : ''
+                    } ${
                       isDark
                         ? 'bg-stone-900/90 border-stone-800 hover:border-amber-500/60 text-stone-100'
                         : 'bg-white border-stone-200/90 hover:border-brand/45 text-stone-900'
                     }`}
                   >
+                    {/* Recently updated ribbon badge */}
+                    {isRecentlyUpdated && (
+                      <div className="absolute top-0 right-0 bg-gradient-to-l from-amber-500 to-rose-500 text-white font-black text-[10px] px-3 py-0.5 rounded-bl-xl shadow-xs flex items-center gap-1 animate-pulse z-10">
+                        <Sparkles className="w-3 h-3" />
+                        <span>คิวเพิ่งอัปเดต</span>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-5 min-w-0">
                       {/* Queue Number Badge */}
                       <div className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center font-serif font-black text-2xl shrink-0 shadow-xs ${

@@ -32,6 +32,9 @@ export interface Booking {
   createdAt: string;  // ISO timestamp
   isAnyBarber?: boolean; // แท็กบอกว่าจองแบบ "ไม่ระบุช่าง" แต่ระบบสุ่มช่างว่างให้
   status?: 'waiting' | 'in-progress' | 'completed' | 'cancelled';
+  paymentSlipUrl?: string; // ภาพสลิปโอนเงิน (Base64)
+  serviceName?: string;    // ชื่อบริการที่เลือก
+  servicePrice?: number;   // ราคาบริการ
 }
 
 export interface LeaveRecord {
