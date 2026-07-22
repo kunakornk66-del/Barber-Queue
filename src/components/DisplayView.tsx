@@ -247,113 +247,123 @@ export default function DisplayView({
         isDark ? 'bg-stone-950 text-stone-100' : 'bg-[#FAF6F0] text-stone-900'
       } ${
         isFullscreen 
-          ? 'p-8 flex flex-col justify-between' 
+          ? 'p-6 sm:p-8 flex flex-col justify-between' 
           : `p-4 sm:p-6 rounded-3xl border shadow-sm ${isDark ? 'border-stone-800 bg-stone-950' : 'border-stone-200 bg-[#FAF6F0]'}`
       }`}
     >
-      {/* 1. Header Area */}
-      <div className={`flex flex-col md:flex-row items-center justify-between gap-6 border-b pb-6 mb-8 transition-colors duration-300 ${
-        isDark ? 'border-stone-800' : 'border-stone-200'
-      }`} id="display-header">
-        {/* Shop Brand & Logo */}
-        <div className="flex items-center gap-4.5">
-          {shopLogoUrl ? (
-            <img 
-              src={shopLogoUrl} 
-              alt={shopName} 
-              referrerPolicy="no-referrer"
-              className={`w-16 h-16 rounded-2xl object-cover shadow-xs border ${
-                isDark ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'
-              }`}
-            />
-          ) : (
-            <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center text-3xl shadow-xs shrink-0 ${
-              isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-brand/10 border-brand/20'
-            }`}>
-              💈
-            </div>
-          )}
-          <div className="text-center md:text-left">
-            <h1 className="text-2xl sm:text-3xl font-serif font-extrabold tracking-tight flex items-center gap-2 justify-center md:justify-start">
-              <span className={isDark ? 'text-stone-100' : 'text-stone-900'}>{shopName}</span>
-              <span className={`text-xs px-2.5 py-0.5 rounded-full font-sans font-bold ${
-                isDark ? 'bg-amber-500 text-stone-950 font-black' : 'bg-brand text-white'
+      {/* 1. Header Area: Top Bar & Controls Toolbar */}
+      <div className="mb-8 space-y-4" id="display-header">
+        {/* Top Header Row: Shop Info & Massive Digital Clock */}
+        <div className={`flex flex-col lg:flex-row items-center justify-between gap-6 border-b pb-5 transition-colors duration-300 ${
+          isDark ? 'border-stone-800' : 'border-stone-200'
+        }`}>
+          {/* Shop Brand & Logo */}
+          <div className="flex items-center gap-4 text-center lg:text-left">
+            {shopLogoUrl ? (
+              <img 
+                src={shopLogoUrl} 
+                alt={shopName} 
+                referrerPolicy="no-referrer"
+                className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-sm border shrink-0 ${
+                  isDark ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'
+                }`}
+              />
+            ) : (
+              <div className={`w-16 h-16 sm:w-20 sm:h-20 rounded-2xl border flex items-center justify-center text-3xl sm:text-4xl shadow-sm shrink-0 ${
+                isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-brand/10 border-brand/20'
               }`}>
-                DISPLAY BOARD
-              </span>
-            </h1>
-            <p className={`text-xs sm:text-sm font-medium mt-0.5 flex items-center justify-center md:justify-start gap-1.5 ${
-              isDark ? 'text-stone-400' : 'text-stone-500'
-            }`}>
-              <Calendar className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
-              <span>{getThaiDateLongString()}</span>
-            </p>
+                💈
+              </div>
+            )}
+            <div>
+              <div className="flex flex-wrap items-center gap-2 justify-center lg:justify-start">
+                <h1 className={`text-2xl sm:text-3xl lg:text-4xl font-serif font-black tracking-tight ${
+                  isDark ? 'text-stone-100' : 'text-stone-900'
+                }`}>
+                  {shopName}
+                </h1>
+                <span className={`text-xs px-3 py-1 rounded-full font-sans font-extrabold tracking-wide shadow-xs ${
+                  isDark ? 'bg-amber-500 text-stone-950' : 'bg-brand text-white'
+                }`}>
+                  DISPLAY BOARD
+                </span>
+              </div>
+              <p className={`text-xs sm:text-sm font-medium mt-1 flex items-center justify-center lg:justify-start gap-1.5 ${
+                isDark ? 'text-stone-400' : 'text-stone-500'
+              }`}>
+                <Calendar className={`w-4 h-4 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
+                <span>{getThaiDateLongString()}</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Digital Clock Widget */}
+          <div className={`px-6 py-3.5 rounded-2xl border shadow-md flex items-center justify-center gap-4 shrink-0 transition-colors duration-300 w-full lg:w-auto ${
+            isDark 
+              ? 'bg-stone-900 text-amber-400 border-amber-500/40 shadow-amber-500/10' 
+              : 'bg-stone-earth text-[#DBCBB5] border-stone-850'
+          }`}>
+            <Clock className={`w-7 h-7 animate-pulse shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest opacity-75">เวลาปัจจุบัน (Current Time)</span>
+              <div className="font-mono text-3xl sm:text-4xl lg:text-5xl font-black tracking-widest leading-none mt-0.5">
+                {currentTime.toTimeString().split(' ')[0]}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Massive Digital Clock & Utility controls */}
-        <div className="flex flex-col sm:flex-row items-center gap-4.5">
-          {/* Digital Clock */}
-          <div className={`px-6 py-3 rounded-2xl border shadow-md flex items-center gap-3.5 shrink-0 transition-colors duration-300 ${
-            isDark 
-              ? 'bg-stone-900 text-amber-400 border-amber-500/40 shadow-amber-500/5' 
-              : 'bg-stone-earth text-[#DBCBB5] border-stone-850'
-          }`}>
-            <Clock className={`w-6 h-6 animate-pulse ${isDark ? 'text-amber-400' : 'text-brand'}`} />
-            <div className="font-mono text-3xl sm:text-4xl font-black tracking-widest">
-              {currentTime.toTimeString().split(' ')[0]}
-            </div>
-          </div>
-
-          {/* Interactive Tablet controls */}
-          <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2 rounded-2xl border shadow-xs transition-colors duration-300 ${
-            isDark ? 'bg-stone-900/90 border-stone-800' : 'bg-stone-100/80 border-stone-200/60'
-          }`}>
-            {/* Theme Selector (Light / Dark / Auto) */}
-            <div className="flex flex-col gap-0.5">
-              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-amber-400' : 'text-stone-500'}`}>
-                🎨 โหมดสีจอ (Theme)
+        {/* Display Control Toolbar Bar */}
+        <div className={`p-3 rounded-2xl border shadow-xs transition-colors duration-300 flex flex-wrap items-center justify-between gap-3 ${
+          isDark ? 'bg-stone-900/80 border-stone-800' : 'bg-stone-100/90 border-stone-200/80'
+        }`}>
+          {/* Left Group: Theme Switcher & Auto Cycle */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Theme Selector */}
+            <div className="flex items-center gap-2">
+              <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-amber-400' : 'text-stone-600'}`}>
+                🎨 โหมดสี:
               </span>
-              <div className={`flex items-center p-0.5 rounded-xl border ${
+              <div className={`flex items-center p-1 rounded-xl border ${
                 isDark ? 'bg-stone-950 border-stone-800' : 'bg-white border-stone-200'
               }`}>
                 <button
                   type="button"
                   onClick={() => setThemeMode('light')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     themeMode === 'light'
-                      ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
+                      ? 'bg-amber-100 text-amber-950 border border-amber-300 shadow-xs'
                       : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="โหมดสว่าง High-Contrast"
                 >
-                  <Sun className="w-3 h-3 text-amber-600" />
+                  <Sun className="w-3.5 h-3.5 text-amber-600" />
                   <span>สว่าง</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setThemeMode('dark')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     themeMode === 'dark'
                       ? 'bg-stone-800 text-amber-300 border border-amber-500/40 shadow-xs'
                       : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="โหมดสีเข้มสำหรับจอมอนิเตอร์"
                 >
-                  <Moon className="w-3 h-3 text-amber-400" />
+                  <Moon className="w-3.5 h-3.5 text-amber-400" />
                   <span>สีเข้ม</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setThemeMode('auto')}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                     themeMode === 'auto'
                       ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
                       : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
                   }`}
                   title="สลับสีเข้ม-สว่างอัตโนมัติตามช่วงเวลา"
                 >
-                  <RotateCw className="w-3 h-3" />
+                  <RotateCw className="w-3.5 h-3.5" />
                   <span>อัตโนมัติ</span>
                 </button>
               </div>
@@ -361,35 +371,34 @@ export default function DisplayView({
 
             {/* Auto Cycle Toggle when Auto mode active */}
             {themeMode === 'auto' && (
-              <div className="flex flex-col gap-0.5 justify-center">
-                <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
-                  🔄 สลับวนลูป 30s
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setAutoCycle(!autoCycle)}
-                  className={`px-2.5 py-1 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center justify-center gap-1 h-[28px] ${
-                    autoCycle
-                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
-                      : isDark ? 'bg-stone-800 border-stone-700 text-stone-400' : 'bg-stone-100 border-stone-200 text-stone-600'
-                  }`}
-                  title="เปิด/ปิด การสลับสีเข้ม-สว่างหมุนเวียนอัตโนมัติทุก 30 วินาที"
-                >
-                  <span>{autoCycle ? 'กำลังวนลูป 30s' : 'เปิดวนลูป'}</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setAutoCycle(!autoCycle)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center gap-1.5 ${
+                  autoCycle
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                    : isDark ? 'bg-stone-800 border-stone-700 text-stone-300' : 'bg-white border-stone-200 text-stone-700'
+                }`}
+                title="เปิด/ปิด การสลับสีเข้ม-สว่างหมุนเวียนอัตโนมัติทุก 30 วินาที"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${autoCycle ? 'animate-spin' : ''}`} />
+                <span>{autoCycle ? 'กำลังวนลูป 30s' : 'เปิดวนลูป 30s'}</span>
+              </button>
             )}
+          </div>
 
+          {/* Right Group: Audio & Fullscreen Controls */}
+          <div className="flex flex-wrap items-center gap-3">
             {/* Voice select option */}
-            <div className="flex flex-col gap-0.5">
-              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
-                🗣️ เสียงระบบเรียกคิว
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-stone-400' : 'text-stone-600'}`}>
+                🗣️ เสียง:
               </span>
               <select
                 id="display-voice-select"
                 value={selectedVoiceName}
                 onChange={(e) => handleVoiceChange(e.target.value)}
-                className={`border rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer h-[28px] ${
+                className={`border rounded-xl px-3 py-1.5 text-xs font-bold outline-none cursor-pointer ${
                   isDark 
                     ? 'bg-stone-800 border-stone-700 text-stone-100 focus:border-amber-400' 
                     : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
@@ -408,38 +417,38 @@ export default function DisplayView({
             </div>
 
             {/* Suffix Select */}
-            <div className="flex flex-col gap-0.5">
-              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
-                💬 หางเสียงคำพูด
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-stone-400' : 'text-stone-600'}`}>
+                💬 หางเสียง:
               </span>
               <select
                 id="display-suffix-select"
                 value={politeSuffix}
                 onChange={(e) => setPoliteSuffix(e.target.value)}
-                className={`border rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer h-[28px] ${
+                className={`border rounded-xl px-3 py-1.5 text-xs font-bold outline-none cursor-pointer ${
                   isDark 
                     ? 'bg-stone-800 border-stone-700 text-stone-100 focus:border-amber-400' 
                     : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
                 }`}
               >
-                <option value="ค่ะ">ค่ะ (สุภาพผู้หญิง)</option>
-                <option value="ครับ">ครับ (สุภาพผู้ชาย)</option>
-                <option value="ครับผม">ครับผม (เป็นทางการ)</option>
-                <option value="">ไม่มี (ไม่ต้องมีหางเสียง)</option>
+                <option value="ค่ะ">ค่ะ</option>
+                <option value="ครับ">ครับ</option>
+                <option value="ครับผม">ครับผม</option>
+                <option value="">ไม่มี</option>
               </select>
             </div>
 
             {/* Toggle Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className={`border px-3.5 py-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs self-stretch sm:self-end h-[28px] sm:mt-3.5 ${
+              className={`border px-4 py-1.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs ${
                 isDark
-                  ? 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-stone-200'
-                  : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-700'
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-300'
+                  : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-800'
               }`}
               title="สลับโหมดเต็มจอ"
             >
-              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
               <span>{isFullscreen ? 'ย่อจอ' : 'เต็มจอ'}</span>
             </button>
           </div>
