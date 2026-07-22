@@ -1537,19 +1537,16 @@ export default function App() {
           </div>
           
           {/* Calendar Thai Date & Barber Shop Real-time Open/Closed Status Display */}
-          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+          <div className="flex flex-wrap items-center justify-center md:justify-end gap-3" id="header-widgets-container">
             
             {/* Live Thai Date with Barber Shop Branding Icons */}
-            <div className="bg-stone-900/60 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 shadow-inner">
-              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
-                <Scissors className="w-4 h-4 text-amber-400" />
+            <div className="bg-stone-900/80 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 shadow-sm hover:border-amber-500/50 transition-all">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                <Scissors className="w-4.5 h-4.5 text-amber-400" />
               </div>
               <div className="text-left">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs">💈</span>
-                  <p className="text-[9px] text-stone-400 font-extrabold uppercase tracking-wider">วันปัจจุบันประจำสาขา</p>
-                </div>
-                <p className="text-xs font-bold text-amber-200 font-serif mt-0.5">{getThaiLongDate()}</p>
+                <p className="text-[10px] text-stone-400 font-extrabold uppercase tracking-wider">วันปัจจุบันประจำสาขา</p>
+                <p className="text-xs font-bold text-amber-200 font-serif mt-0.5 whitespace-nowrap">{getThaiLongDate()}</p>
               </div>
             </div>
 
@@ -1557,16 +1554,14 @@ export default function App() {
             {(() => {
               const status = getShopOpenStatus();
               return (
-                <div className={`px-3.5 py-2.5 rounded-2xl border flex items-center gap-2.5 shadow-md ${status.badgeStyle}`} id="header-shop-status-badge">
-                  <span className="relative flex h-3 w-3 shrink-0">
+                <div className={`px-4 py-2.5 rounded-2xl border flex items-center gap-3 shadow-sm transition-all ${status.badgeStyle}`} id="header-shop-status-badge">
+                  <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                     <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${status.dotStyle}`}></span>
-                    <span className={`relative inline-flex rounded-full h-3 w-3 ${status.isOpen ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
-                  </span>
+                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${status.isOpen ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
+                  </div>
                   <div className="text-left">
-                    <div className="flex items-center gap-1">
-                      <span className="text-[10px] font-black uppercase tracking-tight">{status.statusText}</span>
-                    </div>
-                    <p className="text-[10px] font-mono opacity-85">{status.timeText}</p>
+                    <p className="text-[11px] font-black uppercase tracking-tight whitespace-nowrap">{status.statusText}</p>
+                    <p className="text-[10px] font-mono opacity-90 whitespace-nowrap">{status.timeText}</p>
                   </div>
                 </div>
               );
@@ -1577,11 +1572,11 @@ export default function App() {
               type="button"
               id="header-tv-mode-btn"
               onClick={() => setIsFullscreenDisplay(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 border border-emerald-600/30 text-white px-3.5 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md shrink-0"
+              className="bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40 text-white px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm shrink-0"
               title="สลับหน้านี้เป็นโหมดจอทีวีคิวหน้าร้าน"
             >
-              <Tv className="w-3.5 h-3.5 animate-pulse" />
-              <span>เปิดจอทีวี (TV Mode)</span>
+              <Tv className="w-4 h-4 animate-pulse" />
+              <span className="whitespace-nowrap">เปิดจอทีวี (TV Mode)</span>
             </button>
 
             {/* Notification Quick Toggle in Header */}
