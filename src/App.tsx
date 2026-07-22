@@ -1537,12 +1537,12 @@ export default function App() {
           </div>
           
           {/* Calendar Thai Date & Barber Shop Real-time Open/Closed Status Display */}
-          <div className="flex flex-wrap items-center justify-center md:justify-end gap-3" id="header-widgets-container">
+          <div className="flex flex-wrap items-center justify-center lg:justify-end gap-2.5 sm:gap-3 max-w-full" id="header-widgets-container">
             
             {/* Live Thai Date with Barber Shop Branding Icons */}
-            <div className="bg-stone-900/80 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 shadow-sm hover:border-amber-500/50 transition-all">
-              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
-                <Scissors className="w-4.5 h-4.5 text-amber-400" />
+            <div className="bg-stone-900/80 backdrop-blur-md px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl border border-amber-500/30 flex items-center gap-2.5 sm:gap-3 shadow-sm hover:border-amber-500/50 transition-all shrink-0">
+              <div className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                <Scissors className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400" />
               </div>
               <div className="text-left">
                 <p className="text-[10px] text-stone-400 font-extrabold uppercase tracking-wider">วันปัจจุบันประจำสาขา</p>
@@ -1554,7 +1554,7 @@ export default function App() {
             {(() => {
               const status = getShopOpenStatus();
               return (
-                <div className={`px-4 py-2.5 rounded-2xl border flex items-center gap-3 shadow-sm transition-all ${status.badgeStyle}`} id="header-shop-status-badge">
+                <div className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl border flex items-center gap-2.5 sm:gap-3 shadow-sm transition-all shrink-0 ${status.badgeStyle}`} id="header-shop-status-badge">
                   <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                     <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${status.dotStyle}`}></span>
                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${status.isOpen ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
@@ -1567,60 +1567,63 @@ export default function App() {
               );
             })()}
 
-            {/* TV Mode Toggle Button */}
-            <button
-              type="button"
-              id="header-tv-mode-btn"
-              onClick={() => setIsFullscreenDisplay(true)}
-              className="bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40 text-white px-4 py-2.5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm shrink-0"
-              title="สลับหน้านี้เป็นโหมดจอทีวีคิวหน้าร้าน"
-            >
-              <Tv className="w-4 h-4 animate-pulse" />
-              <span className="whitespace-nowrap">เปิดจอทีวี (TV Mode)</span>
-            </button>
+            {/* Action Buttons Row Group */}
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-2.5">
+              {/* TV Mode Toggle Button */}
+              <button
+                type="button"
+                id="header-tv-mode-btn"
+                onClick={() => setIsFullscreenDisplay(true)}
+                className="bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/40 text-white px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs font-black transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 shadow-sm shrink-0"
+                title="สลับหน้านี้เป็นโหมดจอทีวีคิวหน้าร้าน"
+              >
+                <Tv className="w-4 h-4 animate-pulse" />
+                <span className="whitespace-nowrap">เปิดจอทีวี (TV Mode)</span>
+              </button>
 
-            {/* Notification Quick Toggle in Header */}
-            <button
-              type="button"
-              id="header-notification-toggle-btn"
-              onClick={toggleNotifications}
-              className={`px-3.5 py-2.5 rounded-2xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md border shrink-0 ${
-                notificationsEnabled
-                  ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 border-amber-400 font-extrabold'
-                  : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700'
-              }`}
-              title={notificationsEnabled ? 'ระบบแจ้งเตือนคิวเปิดอยู่ (กดเพื่อปิด)' : 'กดเพื่อเปิดรับ Browser Notification เมื่อมีคิวใหม่'}
-            >
-              {notificationsEnabled ? (
-                <>
-                  <BellRing className="w-3.5 h-3.5 text-stone-950 animate-bounce" />
-                  <span>แจ้งเตือนคิว: เปิดอยู่</span>
-                </>
-              ) : (
-                <>
-                  <BellOff className="w-3.5 h-3.5 text-stone-400" />
-                  <span>เปิดการแจ้งเตือนคิว</span>
-                </>
-              )}
-            </button>
+              {/* Notification Quick Toggle in Header */}
+              <button
+                type="button"
+                id="header-notification-toggle-btn"
+                onClick={toggleNotifications}
+                className={`px-3.5 py-2 sm:py-2.5 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md border shrink-0 ${
+                  notificationsEnabled
+                    ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 border-amber-400 font-extrabold'
+                    : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700'
+                }`}
+                title={notificationsEnabled ? 'ระบบแจ้งเตือนคิวเปิดอยู่ (กดเพื่อปิด)' : 'กดเพื่อเปิดรับ Browser Notification เมื่อมีคิวใหม่'}
+              >
+                {notificationsEnabled ? (
+                  <>
+                    <BellRing className="w-3.5 h-3.5 text-stone-950 animate-bounce" />
+                    <span className="whitespace-nowrap">แจ้งเตือนคิว: เปิด</span>
+                  </>
+                ) : (
+                  <>
+                    <BellOff className="w-3.5 h-3.5 text-stone-400" />
+                    <span className="whitespace-nowrap">เปิดการแจ้งเตือน</span>
+                  </>
+                )}
+              </button>
 
-            {/* Logout Branch Button */}
-            <button
-              type="button"
-              id="branch-logout-btn"
-              onClick={() => {
-                localStorage.removeItem('activeShopEmail');
-                setActiveShopEmail(null);
-                const url = new URL(window.location.href);
-                url.searchParams.delete('shop');
-                url.searchParams.delete('branch');
-                window.history.replaceState({}, '', url.toString());
-              }}
-              className="bg-[#3D1E1E] hover:bg-[#522929] border border-red-900/40 text-red-200 px-3.5 py-2.5 rounded-2xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>ออกจากระบบ (Logout)</span>
-            </button>
+              {/* Logout Branch Button */}
+              <button
+                type="button"
+                id="branch-logout-btn"
+                onClick={() => {
+                  localStorage.removeItem('activeShopEmail');
+                  setActiveShopEmail(null);
+                  const url = new URL(window.location.href);
+                  url.searchParams.delete('shop');
+                  url.searchParams.delete('branch');
+                  window.history.replaceState({}, '', url.toString());
+                }}
+                className="bg-[#3D1E1E] hover:bg-[#522929] border border-red-900/40 text-red-200 px-3 py-2 sm:py-2.5 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm shrink-0"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="whitespace-nowrap">ออกจากระบบ</span>
+              </button>
+            </div>
 
           </div>
 
