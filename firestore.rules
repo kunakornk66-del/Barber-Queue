@@ -37,7 +37,8 @@ service cloud.firestore {
         && data.get('startTime', '') is string && data.get('startTime', '').size() <= 10
         && data.get('endTime', '') is string && data.get('endTime', '').size() <= 10
         && data.get('recordedBy', '') is string && data.get('recordedBy', '').size() <= 100
-        && data.get('createdAt', '') is string && data.get('createdAt', '').size() <= 50;
+        && data.get('createdAt', '') is string && data.get('createdAt', '').size() <= 50
+        && (data.get('status', 'waiting') is string && data.get('status', 'waiting').size() <= 30);
     }
 
     function isValidHairdresser(data) {
@@ -46,6 +47,12 @@ service cloud.firestore {
         && (data.get('onLeave', false) is bool)
         && (data.get('busyStart', '') is string || data.get('busyStart', null) == null)
         && (data.get('busyUntil', '') is string || data.get('busyUntil', null) == null);
+    }
+
+    function isValidRecorder(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('name', '') is string && data.get('name', '').size() <= 100
+        && (data.get('role', '') is string || data.get('role', null) == null);
     }
 
     function isValidSetting(data) {
@@ -84,6 +91,13 @@ service cloud.firestore {
       allow create: if isValidId(hairdresserId) && isValidHairdresser(incoming());
       allow update: if isValidId(hairdresserId) && isValidHairdresser(incoming());
       allow delete: if isValidId(hairdresserId);
+    }
+
+    match /stores/{shopEmail}/recorders/{recorderId} {
+      allow read: if true;
+      allow create: if isValidId(recorderId) && isValidRecorder(incoming());
+      allow update: if isValidId(recorderId) && isValidRecorder(incoming());
+      allow delete: if isValidId(recorderId);
     }
 
     match /stores/{shopEmail}/settings/{settingId} {

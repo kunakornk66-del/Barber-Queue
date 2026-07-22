@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, FormEvent } from 'react';
-import { Hairdresser, Booking, LeaveRecord } from '../types';
+import { Hairdresser, Booking, LeaveRecord, StaffRecorder } from '../types';
 import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X, Filter, Plus, RefreshCw, Users, HelpCircle } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
@@ -46,6 +46,7 @@ const TIME_OPTIONS_DEFAULT = generateTimeOptions(30);
 
 interface BookingFormProps {
   hairdressers: Hairdresser[];
+  recorders?: StaffRecorder[];
   bookings?: Booking[];
   leaves?: LeaveRecord[];
   onAddBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => void;
@@ -62,6 +63,7 @@ interface BookingFormProps {
 
 export default function BookingForm({
   hairdressers,
+  recorders = [],
   bookings = [],
   leaves = [],
   onAddBooking,
@@ -397,12 +399,16 @@ export default function BookingForm({
     }
   };
 
-  // Dynamic set active recorder default if none selected and hairdryers are loaded
+  // Dynamic set active recorder default if none selected
   useEffect(() => {
-    if (!activeRecorder && hairdressers.length > 0) {
-      setActiveRecorder(hairdressers[0].name);
+    if (!activeRecorder) {
+      if (recorders.length > 0) {
+        setActiveRecorder(recorders[0].name);
+      } else if (hairdressers.length > 0) {
+        setActiveRecorder(hairdressers[0].name);
+      }
     }
-  }, [hairdressers, activeRecorder, setActiveRecorder]);
+  }, [recorders, hairdressers, activeRecorder, setActiveRecorder]);
 
   // Helper to get unique list of past customers from all bookings
   const getUniqueCustomers = () => {
@@ -466,9 +472,11 @@ export default function BookingForm({
       return;
     }
 
-    // Basic Validation
-    if (!activeRecorder) {
-      setErrorMsg('กรุณาเลือกผู้บันทึก (ช่างในร้าน)');
+    // Basic Validation - Mandatory Recorder Selection
+    if (!activeRecorder || !activeRecorder.trim()) {
+      setErrorMsg('⛔ บังคับเลือกผู้บันทึกคิว! กรุณาเลือกผู้บันทึกคิว (เจ้าของร้าน, พนักงานต้อนรับ หรือช่างในร้าน) ก่อนกดยืนยัน');
+      const el = document.getElementById('recorder-selection-section');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
 
@@ -668,7 +676,8 @@ export default function BookingForm({
       customerPhone: customerPhone.trim() || '-',
       remarks: remarks.trim(),
       recordedBy: activeRecorder,
-      isAnyBarber: isAnyBarberAssigned
+      isAnyBarber: isAnyBarberAssigned,
+      status: 'waiting'
     });
 
     // Reset Form (except Date, times, hairdresser, and activeRecorder for easier continuation)
@@ -938,7 +947,7 @@ export default function BookingForm({
               <input
                 type="text"
                 id="customer-name-input"
-                placeholder="กรุณากรอกชื่อลูกค้า"
+                placeholder=""
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all"
@@ -1038,46 +1047,90 @@ export default function BookingForm({
           </div>
         </div>
 
-        {/* 5. Recorder Line (ผู้บันทึก) */}
-        <div className="space-y-2 border-t border-stone-200 pt-5">
-          <div className="flex justify-between items-center">
-            <label className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
-              🔑 ช่างผู้บันทึกระบบ
+        {/* 5. Recorder Selection Line (ผู้บันทึกคิว - บังคับเลือก) */}
+        <div className="space-y-3 border-t border-stone-200 pt-5" id="recorder-selection-section">
+          <div className="flex flex-wrap justify-between items-center gap-2">
+            <label className="text-xs font-bold text-stone-900 uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-brand" /> ผู้บันทึกคิว (บังคับเลือก) <span className="text-red-600 font-extrabold">*</span>
             </label>
-            <span className="text-[11px] text-stone-500 font-light">ข้อมูลสำหรับผู้ตรวจสอบคิวหลังตรวจสอบ</span>
+            <span className={`text-[11px] px-2.5 py-1 rounded-xl font-bold border transition-all ${
+              activeRecorder 
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300' 
+                : 'bg-red-50 text-red-700 border-red-300 animate-pulse'
+            }`}>
+              {activeRecorder ? `✓ ผู้บันทึก: ${activeRecorder}` : '⚠️ ยังไม่ได้เลือกผู้บันทึก (จำเป็น)'}
+            </span>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {hairdressers.map((hd) => {
-              const isSelected = activeRecorder === hd.name;
-              const isOnLeave = !!hd.onLeave;
-              return (
-                <button
-                  key={`recorder-${hd.id}`}
-                  type="button"
-                  id={`recorder-btn-${hd.id}`}
-                  onClick={() => setActiveRecorder(hd.name)}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-semibold border-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                    isSelected
-                      ? isOnLeave
-                        ? 'border-amber-500 bg-amber-50 text-amber-900 shadow-sm'
-                        : 'border-brand bg-brand text-white shadow-sm'
-                      : isOnLeave
-                        ? 'border-stone-150 bg-stone-100/50 text-stone-400 opacity-60'
-                        : 'border-stone-200 bg-white text-stone-700 hover:bg-stone-50'
-                  }`}
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? (isOnLeave ? 'bg-amber-600' : 'bg-white') : (isOnLeave ? 'bg-amber-400' : 'bg-brand')}`}></span>
-                  ช่าง{hd.name} {isOnLeave && <span className="text-[9px] font-bold text-amber-600">(ลางาน)</span>}
-                </button>
-              );
-            })}
-
-            {hairdressers.length === 0 && (
-              <span className="text-xs text-brand bg-brand-light px-3 py-2 rounded-xl border border-brand/20">
-                ⚠️ กรุณาไปเพิ่มช่างในเมนูตั้งค่าก่อน เพื่อเป็นผู้บันทึกคิว
-              </span>
+          <div className="space-y-3 bg-stone-50/70 p-3.5 rounded-2xl border border-stone-200/80">
+            {/* Non-barber staff (เจ้าของร้าน / Reception / แคชเชียร์) */}
+            {recorders && recorders.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                  👔 เจ้าของร้าน / พนักงานต้อนรับ / Reception:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {recorders.map((rec) => {
+                    const isSelected = activeRecorder === rec.name;
+                    return (
+                      <button
+                        key={`rec-${rec.id}`}
+                        type="button"
+                        id={`recorder-btn-rec-${rec.id}`}
+                        onClick={() => setActiveRecorder(rec.name)}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                          isSelected
+                            ? 'border-brand bg-brand text-white shadow-md'
+                            : 'border-stone-200 bg-white text-stone-800 hover:bg-stone-100 hover:border-stone-300'
+                        }`}
+                      >
+                        <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-amber-300' : 'bg-brand'}`}></span>
+                        <span>{rec.name}</span>
+                        <span className={`text-[9px] font-normal px-1.5 py-0.2 rounded-md ${
+                          isSelected ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500'
+                        }`}>
+                          {rec.role || 'พนักงาน'}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
+
+            {/* Barber staff options */}
+            <div className="space-y-1.5">
+              <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                💇‍♂️ ช่างทำผมประจำร้าน:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {hairdressers.map((hd) => {
+                  const isSelected = activeRecorder === hd.name;
+                  const isOnLeave = !!hd.onLeave;
+                  return (
+                    <button
+                      key={`recorder-hd-${hd.id}`}
+                      type="button"
+                      id={`recorder-btn-hd-${hd.id}`}
+                      onClick={() => setActiveRecorder(hd.name)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold border-2 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                        isSelected
+                          ? isOnLeave
+                            ? 'border-amber-600 bg-amber-500 text-stone-950 shadow-md font-black'
+                            : 'border-brand bg-brand text-white shadow-md'
+                          : isOnLeave
+                            ? 'border-stone-200 bg-stone-100/60 text-stone-500 opacity-70'
+                            : 'border-stone-200 bg-white text-stone-800 hover:bg-stone-100'
+                      }`}
+                    >
+                      <span className={`w-2 h-2 rounded-full ${isSelected ? (isOnLeave ? 'bg-stone-950' : 'bg-amber-300') : (isOnLeave ? 'bg-amber-500' : 'bg-brand')}`}></span>
+                      <span>ช่าง{hd.name}</span>
+                      {isOnLeave && <span className="text-[9px] font-bold text-amber-700 bg-amber-100 px-1 rounded">(ลางาน)</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 

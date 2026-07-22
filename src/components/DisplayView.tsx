@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Booking, Hairdresser } from '../types';
-import { Clock, Volume2, Maximize2, Minimize2, Calendar, Scissors, User, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Clock, Volume2, Maximize2, Minimize2, Calendar, Scissors, User, ArrowRight, CheckCircle2, Moon, Sun, RotateCw } from 'lucide-react';
 import { formatThaiTime } from './BookingList';
 
 interface DisplayViewProps {
@@ -33,6 +33,11 @@ export default function DisplayView({
   const [politeSuffix, setPoliteSuffix] = useState<string>('ค่ะ');
   const [speakingId, setSpeakingId] = useState<string | null>(null);
 
+  // Theme state for display monitor
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'auto'>('auto');
+  const [autoCycle, setAutoCycle] = useState<boolean>(false);
+  const [cycleTheme, setCycleTheme] = useState<'light' | 'dark'>('dark');
+
   // Update clock every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -40,6 +45,21 @@ export default function DisplayView({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Theme auto cycle switcher (toggles between light and dark every 30 seconds if auto cycle is active)
+  useEffect(() => {
+    if (themeMode !== 'auto' || !autoCycle) return;
+    const interval = setInterval(() => {
+      setCycleTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [themeMode, autoCycle]);
+
+  // Determine actual dark mode state
+  const isNightTime = currentTime.getHours() >= 18 || currentTime.getHours() < 7;
+  const isDark = themeMode === 'dark' || (
+    themeMode === 'auto' && (autoCycle ? cycleTheme === 'dark' : isNightTime)
+  );
 
   // Fetch real system voices (Thai) dynamically
   useEffect(() => {
@@ -223,12 +243,18 @@ export default function DisplayView({
   return (
     <div 
       id="tablet-display-view-container"
-      className={`min-h-screen bg-[#FAF6F0] text-stone-900 transition-all font-sans ${
-        isFullscreen ? 'p-8 flex flex-col justify-between' : 'p-4 sm:p-6 rounded-3xl border border-stone-200 shadow-sm'
+      className={`min-h-screen transition-colors duration-500 font-sans ${
+        isDark ? 'bg-stone-950 text-stone-100' : 'bg-[#FAF6F0] text-stone-900'
+      } ${
+        isFullscreen 
+          ? 'p-8 flex flex-col justify-between' 
+          : `p-4 sm:p-6 rounded-3xl border shadow-sm ${isDark ? 'border-stone-800 bg-stone-950' : 'border-stone-200 bg-[#FAF6F0]'}`
       }`}
     >
       {/* 1. Header Area */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-6 border-b border-stone-200 pb-6 mb-8" id="display-header">
+      <div className={`flex flex-col md:flex-row items-center justify-between gap-6 border-b pb-6 mb-8 transition-colors duration-300 ${
+        isDark ? 'border-stone-800' : 'border-stone-200'
+      }`} id="display-header">
         {/* Shop Brand & Logo */}
         <div className="flex items-center gap-4.5">
           {shopLogoUrl ? (
@@ -236,44 +262,138 @@ export default function DisplayView({
               src={shopLogoUrl} 
               alt={shopName} 
               referrerPolicy="no-referrer"
-              className="w-16 h-16 rounded-2xl object-cover shadow-xs border border-stone-200 bg-white"
+              className={`w-16 h-16 rounded-2xl object-cover shadow-xs border ${
+                isDark ? 'border-stone-800 bg-stone-900' : 'border-stone-200 bg-white'
+              }`}
             />
           ) : (
-            <div className="w-16 h-16 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center text-3xl shadow-xs shrink-0">
+            <div className={`w-16 h-16 rounded-2xl border flex items-center justify-center text-3xl shadow-xs shrink-0 ${
+              isDark ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' : 'bg-brand/10 border-brand/20'
+            }`}>
               💈
             </div>
           )}
           <div className="text-center md:text-left">
-            <h1 className="text-2xl sm:text-3xl font-serif font-extrabold text-stone-900 tracking-tight flex items-center gap-2 justify-center md:justify-start">
-              <span>{shopName}</span>
-              <span className="text-xs bg-brand text-white px-2.5 py-0.5 rounded-full font-sans font-bold">DISPLAY BOARD</span>
+            <h1 className="text-2xl sm:text-3xl font-serif font-extrabold tracking-tight flex items-center gap-2 justify-center md:justify-start">
+              <span className={isDark ? 'text-stone-100' : 'text-stone-900'}>{shopName}</span>
+              <span className={`text-xs px-2.5 py-0.5 rounded-full font-sans font-bold ${
+                isDark ? 'bg-amber-500 text-stone-950 font-black' : 'bg-brand text-white'
+              }`}>
+                DISPLAY BOARD
+              </span>
             </h1>
-            <p className="text-xs sm:text-sm text-stone-500 font-medium mt-0.5 flex items-center justify-center md:justify-start gap-1.5">
-              <Calendar className="w-4 h-4 text-brand" />
+            <p className={`text-xs sm:text-sm font-medium mt-0.5 flex items-center justify-center md:justify-start gap-1.5 ${
+              isDark ? 'text-stone-400' : 'text-stone-500'
+            }`}>
+              <Calendar className={`w-4 h-4 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
               <span>{getThaiDateLongString()}</span>
             </p>
           </div>
         </div>
 
-        {/* Massive Digital Clock & Utility buttons */}
+        {/* Massive Digital Clock & Utility controls */}
         <div className="flex flex-col sm:flex-row items-center gap-4.5">
-          <div className="bg-stone-earth text-[#DBCBB5] px-6 py-3 rounded-2xl border border-stone-850 shadow-md flex items-center gap-3.5 shrink-0">
-            <Clock className="w-6 h-6 text-brand animate-pulse" />
+          {/* Digital Clock */}
+          <div className={`px-6 py-3 rounded-2xl border shadow-md flex items-center gap-3.5 shrink-0 transition-colors duration-300 ${
+            isDark 
+              ? 'bg-stone-900 text-amber-400 border-amber-500/40 shadow-amber-500/5' 
+              : 'bg-stone-earth text-[#DBCBB5] border-stone-850'
+          }`}>
+            <Clock className={`w-6 h-6 animate-pulse ${isDark ? 'text-amber-400' : 'text-brand'}`} />
             <div className="font-mono text-3xl sm:text-4xl font-black tracking-widest">
               {currentTime.toTimeString().split(' ')[0]}
             </div>
           </div>
 
           {/* Interactive Tablet controls */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 bg-stone-100/80 p-2 rounded-2xl border border-stone-200/60 shadow-xs">
+          <div className={`flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 p-2 rounded-2xl border shadow-xs transition-colors duration-300 ${
+            isDark ? 'bg-stone-900/90 border-stone-800' : 'bg-stone-100/80 border-stone-200/60'
+          }`}>
+            {/* Theme Selector (Light / Dark / Auto) */}
+            <div className="flex flex-col gap-0.5">
+              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-amber-400' : 'text-stone-500'}`}>
+                🎨 โหมดสีจอ (Theme)
+              </span>
+              <div className={`flex items-center p-0.5 rounded-xl border ${
+                isDark ? 'bg-stone-950 border-stone-800' : 'bg-white border-stone-200'
+              }`}>
+                <button
+                  type="button"
+                  onClick={() => setThemeMode('light')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    themeMode === 'light'
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
+                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  title="โหมดสว่าง High-Contrast"
+                >
+                  <Sun className="w-3 h-3 text-amber-600" />
+                  <span>สว่าง</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThemeMode('dark')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    themeMode === 'dark'
+                      ? 'bg-stone-800 text-amber-300 border border-amber-500/40 shadow-xs'
+                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  title="โหมดสีเข้มสำหรับจอมอนิเตอร์"
+                >
+                  <Moon className="w-3 h-3 text-amber-400" />
+                  <span>สีเข้ม</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setThemeMode('auto')}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    themeMode === 'auto'
+                      ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
+                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  title="สลับสีเข้ม-สว่างอัตโนมัติตามช่วงเวลา"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  <span>อัตโนมัติ</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Auto Cycle Toggle when Auto mode active */}
+            {themeMode === 'auto' && (
+              <div className="flex flex-col gap-0.5 justify-center">
+                <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
+                  🔄 สลับวนลูป 30s
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setAutoCycle(!autoCycle)}
+                  className={`px-2.5 py-1 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center justify-center gap-1 h-[28px] ${
+                    autoCycle
+                      ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500 animate-pulse'
+                      : isDark ? 'bg-stone-800 border-stone-700 text-stone-400' : 'bg-stone-100 border-stone-200 text-stone-600'
+                  }`}
+                  title="เปิด/ปิด การสลับสีเข้ม-สว่างหมุนเวียนอัตโนมัติทุก 30 วินาที"
+                >
+                  <span>{autoCycle ? 'กำลังวนลูป 30s' : 'เปิดวนลูป'}</span>
+                </button>
+              </div>
+            )}
+
             {/* Voice select option */}
             <div className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-stone-500 font-extrabold uppercase px-1">🗣️ เสียงระบบเรียกคิว (Voice Engine)</span>
+              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
+                🗣️ เสียงระบบเรียกคิว
+              </span>
               <select
                 id="display-voice-select"
                 value={selectedVoiceName}
                 onChange={(e) => handleVoiceChange(e.target.value)}
-                className="bg-white border border-stone-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-stone-850 outline-none focus:ring-1 focus:ring-brand cursor-pointer"
+                className={`border rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer h-[28px] ${
+                  isDark 
+                    ? 'bg-stone-800 border-stone-700 text-stone-100 focus:border-amber-400' 
+                    : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
+                }`}
               >
                 {availableVoices.length > 0 ? (
                   availableVoices.map((voice) => (
@@ -289,12 +409,18 @@ export default function DisplayView({
 
             {/* Suffix Select */}
             <div className="flex flex-col gap-0.5">
-              <span className="text-[9px] text-stone-500 font-extrabold uppercase px-1">💬 คำลงท้ายคิว (Polite Suffix)</span>
+              <span className={`text-[9px] font-extrabold uppercase px-1 ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
+                💬 หางเสียงคำพูด
+              </span>
               <select
                 id="display-suffix-select"
                 value={politeSuffix}
                 onChange={(e) => setPoliteSuffix(e.target.value)}
-                className="bg-white border border-stone-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-stone-850 outline-none focus:ring-1 focus:ring-brand cursor-pointer"
+                className={`border rounded-xl px-2.5 py-1 text-xs font-bold outline-none cursor-pointer h-[28px] ${
+                  isDark 
+                    ? 'bg-stone-800 border-stone-700 text-stone-100 focus:border-amber-400' 
+                    : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
+                }`}
               >
                 <option value="ค่ะ">ค่ะ (สุภาพผู้หญิง)</option>
                 <option value="ครับ">ครับ (สุภาพผู้ชาย)</option>
@@ -306,10 +432,14 @@ export default function DisplayView({
             {/* Toggle Fullscreen */}
             <button
               onClick={toggleFullscreen}
-              className="bg-white hover:bg-stone-50 border border-stone-200 hover:border-stone-300 text-stone-700 px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs self-stretch sm:self-end h-[34px] sm:mt-3.5"
+              className={`border px-3.5 py-1 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-95 shadow-xs self-stretch sm:self-end h-[28px] sm:mt-3.5 ${
+                isDark
+                  ? 'bg-stone-800 hover:bg-stone-700 border-stone-700 text-stone-200'
+                  : 'bg-white hover:bg-stone-50 border-stone-200 text-stone-700'
+              }`}
               title="สลับโหมดเต็มจอ"
             >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               <span>{isFullscreen ? 'ย่อจอ' : 'เต็มจอ'}</span>
             </button>
           </div>
@@ -321,15 +451,21 @@ export default function DisplayView({
         
         {/* LEFT COLUMN: NOW SERVING (คิวที่กำลังทำขณะนี้) - TAKES 7/12 COLS */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between border-b-2 border-stone-300 pb-3">
-            <h2 className="text-2xl sm:text-3xl font-serif font-black text-stone-900 flex items-center gap-2.5">
+          <div className={`flex items-center justify-between border-b-2 pb-3 ${
+            isDark ? 'border-stone-800' : 'border-stone-300'
+          }`}>
+            <h2 className={`text-2xl sm:text-3xl font-serif font-black flex items-center gap-2.5 ${
+              isDark ? 'text-stone-100' : 'text-stone-900'
+            }`}>
               <span className="relative flex h-5 w-5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-5 w-5 bg-emerald-500"></span>
               </span>
               <span>กำลังให้บริการในขณะนี้ (Now Serving)</span>
             </h2>
-            <span className="bg-emerald-100 text-emerald-800 border-2 border-emerald-200 font-black text-sm px-4 py-1.5 rounded-full shrink-0">
+            <span className={`border-2 font-black text-sm px-4 py-1.5 rounded-full shrink-0 ${
+              isDark ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/60' : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+            }`}>
               {activeBookings.length} คิว
             </span>
           </div>
@@ -341,7 +477,11 @@ export default function DisplayView({
                 return (
                   <div 
                     key={booking.id}
-                    className="relative overflow-hidden bg-white border-2 border-emerald-500/80 rounded-3xl p-6 sm:p-8 shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col justify-between gap-6 group"
+                    className={`relative overflow-hidden border-2 rounded-3xl p-6 sm:p-8 shadow-xl transition-all duration-300 flex flex-col justify-between gap-6 group ${
+                      isDark
+                        ? 'bg-stone-900/90 border-emerald-500/90 shadow-emerald-950/40 text-stone-100'
+                        : 'bg-white border-emerald-500/80 shadow-lg text-stone-900'
+                    }`}
                   >
                     {/* Glowing highlight ribbon */}
                     <div className="absolute top-0 left-0 w-3.5 h-full bg-emerald-500"></div>
@@ -349,19 +489,29 @@ export default function DisplayView({
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 pl-3.5">
                       <div>
                         {/* Queue Slot Time Badge */}
-                        <div className="inline-flex items-center gap-2.5 bg-emerald-50 text-emerald-800 border-2 border-emerald-200/80 px-4 py-2 rounded-2xl font-mono text-base sm:text-lg lg:text-xl font-black mb-4.5 shadow-xs">
-                          <Clock className="w-5.5 h-5.5 text-emerald-600 animate-pulse" />
+                        <div className={`inline-flex items-center gap-2.5 border-2 px-4 py-2 rounded-2xl font-mono text-base sm:text-lg lg:text-xl font-black mb-4.5 shadow-xs ${
+                          isDark
+                            ? 'bg-emerald-950/90 text-emerald-300 border-emerald-500/60'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200/80'
+                        }`}>
+                          <Clock className="w-5.5 h-5.5 text-emerald-500 animate-pulse" />
                           <span>เวลา {formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
                         </div>
                         {/* Customer Name - MASSIVE (optimized for far-distance viewing) */}
-                        <h3 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-serif font-black text-stone-900 tracking-tight leading-normal break-words max-w-full my-3">
+                        <h3 className={`text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-serif font-black tracking-tight leading-normal break-words max-w-full my-3 ${
+                          isDark ? 'text-emerald-300 drop-shadow-md' : 'text-stone-900'
+                        }`}>
                           {booking.customerName}
                         </h3>
                         {/* Barber / Hairdresser Name */}
-                        <div className="flex items-center gap-2.5 text-stone-600 text-lg sm:text-2xl lg:text-3xl font-bold mt-4">
-                          <Scissors className="w-6 h-6 lg:w-7 lg:h-7 text-brand shrink-0" />
+                        <div className={`flex items-center gap-2.5 text-lg sm:text-2xl lg:text-3xl font-bold mt-4 ${
+                          isDark ? 'text-stone-300' : 'text-stone-600'
+                        }`}>
+                          <Scissors className={`w-6 h-6 lg:w-7 lg:h-7 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
                           <span>ช่างที่ดูแล:</span>
-                          <span className="text-brand font-black font-serif underline decoration-brand/30 underline-offset-4">
+                          <span className={`font-black font-serif underline underline-offset-4 ${
+                            isDark ? 'text-amber-400 decoration-amber-400/40' : 'text-brand decoration-brand/30'
+                          }`}>
                             ช่าง{getHairdresserName(booking.hairdresserId)}
                           </span>
                         </div>
@@ -373,7 +523,9 @@ export default function DisplayView({
                         className={`sm:self-center shrink-0 border rounded-2xl px-5 py-3 text-sm font-black flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 shadow-xs ${
                           isSpeaking 
                             ? 'bg-rose-500 border-rose-600 text-white animate-pulse' 
-                            : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white hover:shadow-md'
+                            : isDark
+                              ? 'bg-emerald-600 hover:bg-emerald-500 border-emerald-400 text-white shadow-emerald-950/50'
+                              : 'bg-emerald-500 hover:bg-emerald-600 border-emerald-600 text-white hover:shadow-md'
                         }`}
                         title="เรียกคิวลูกค้าเสียงดัง"
                       >
@@ -383,8 +535,10 @@ export default function DisplayView({
                     </div>
 
                     {booking.remarks && (
-                      <div className="bg-[#FAF8F5] border border-stone-200/60 rounded-2xl p-4.5 pl-5 ml-3.5">
-                        <p className="text-xs sm:text-sm text-stone-600 font-medium italic flex gap-1.5">
+                      <div className={`border rounded-2xl p-4.5 pl-5 ml-3.5 ${
+                        isDark ? 'bg-stone-950/80 border-stone-800 text-stone-300' : 'bg-[#FAF8F5] border-stone-200/60 text-stone-600'
+                      }`}>
+                        <p className="text-xs sm:text-sm font-medium italic flex gap-1.5">
                           <span>💡</span>
                           <span>หมายเหตุ: "{booking.remarks}"</span>
                         </p>
@@ -395,12 +549,16 @@ export default function DisplayView({
               })}
             </div>
           ) : (
-            <div className="bg-white border border-stone-200/90 rounded-3xl p-12 text-center space-y-4 shadow-xs" id="no-active-queues">
-              <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto text-3xl">
+            <div className={`border rounded-3xl p-12 text-center space-y-4 shadow-xs ${
+              isDark ? 'bg-stone-900/60 border-stone-800 text-stone-200' : 'bg-white border-stone-200/90 text-stone-700'
+            }`} id="no-active-queues">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto text-3xl ${
+                isDark ? 'bg-stone-800' : 'bg-stone-100'
+              }`}>
                 💈
               </div>
-              <h3 className="text-xl font-serif font-bold text-stone-700">ไม่มีคิวรับบริการจริงในขณะนี้</h3>
-              <p className="text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+              <h3 className={`text-xl font-serif font-bold ${isDark ? 'text-stone-200' : 'text-stone-700'}`}>ไม่มีคิวรับบริการจริงในขณะนี้</h3>
+              <p className={`text-sm max-w-sm mx-auto leading-relaxed ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
                 ขณะนี้อยู่ในช่วงว่าง หรือไม่มีลูกค้าลงคิวไว้ในช่วงนาทีนี้ คุณสามารถตรวจสอบรายละเอียดคิวถัดไปได้ทางด้านขวามือ
               </p>
             </div>
@@ -408,8 +566,10 @@ export default function DisplayView({
 
           {/* EXTRA: BARBER LANES FOR TABLET DISPLAY (หน้าจอช่างแต่ละท่าน) */}
           <div className="pt-4 space-y-4">
-            <h3 className="text-lg font-serif font-black text-stone-800 border-b border-stone-200/80 pb-2 flex items-center gap-2">
-              <Scissors className="w-5 h-5 text-brand" />
+            <h3 className={`text-lg font-serif font-black border-b pb-2 flex items-center gap-2 ${
+              isDark ? 'text-stone-200 border-stone-800' : 'text-stone-800 border-stone-200/80'
+            }`}>
+              <Scissors className={`w-5 h-5 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
               <span>สถานะช่างประจำจุด (Stylist Boards)</span>
             </h3>
 
@@ -424,13 +584,15 @@ export default function DisplayView({
                 const hdNextBooking = upcomingBookings.find(b => b.hairdresserId === hd.id);
 
                 return (
-                  <div key={hd.id} className="bg-white border border-stone-200 rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3">
+                  <div key={hd.id} className={`border rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3 ${
+                    isDark ? 'bg-stone-900/80 border-stone-800 text-stone-100' : 'bg-white border-stone-200 text-stone-900'
+                  }`}>
                     <div className="flex items-center justify-between">
-                      <h4 className="font-serif font-bold text-stone-900 text-sm">
+                      <h4 className={`font-serif font-bold text-sm ${isDark ? 'text-stone-100' : 'text-stone-900'}`}>
                         ช่าง{hd.name}
                       </h4>
                       {isBusy ? (
-                        <span className="text-[10px] bg-amber-500 text-white font-bold px-2 py-0.5 rounded-lg animate-pulse">
+                        <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-lg animate-pulse">
                           กำลังบริการ
                         </span>
                       ) : isBreak ? (
@@ -445,24 +607,32 @@ export default function DisplayView({
                     </div>
 
                     <div className="space-y-1.5 text-xs">
-                      <div className="flex justify-between items-center bg-stone-50 p-2 rounded-xl">
-                        <span className="text-stone-400 font-bold">คิวตอนนี้:</span>
-                        <span className="text-stone-800 font-bold truncate max-w-[120px]">
+                      <div className={`flex justify-between items-center p-2 rounded-xl ${
+                        isDark ? 'bg-stone-950 text-stone-200' : 'bg-stone-50 text-stone-800'
+                      }`}>
+                        <span className={isDark ? 'text-stone-400 font-bold' : 'text-stone-400 font-bold'}>คิวตอนนี้:</span>
+                        <span className="font-bold truncate max-w-[120px]">
                           {hdActiveBooking ? hdActiveBooking.customerName : 'ว่าง / ไม่มี'}
                         </span>
                         {hdActiveBooking && (
-                          <span className="text-[10px] bg-stone-200 px-1.5 py-0.5 rounded font-mono">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                            isDark ? 'bg-stone-800 text-amber-300' : 'bg-stone-200 text-stone-800'
+                          }`}>
                             {hdActiveBooking.startTime}
                           </span>
                         )}
                       </div>
-                      <div className="flex justify-between items-center bg-[#FDFBF7] p-2 rounded-xl">
+                      <div className={`flex justify-between items-center p-2 rounded-xl ${
+                        isDark ? 'bg-stone-950/80 text-stone-200' : 'bg-[#FDFBF7] text-stone-800'
+                      }`}>
                         <span className="text-stone-400 font-bold">คิวถัดไป:</span>
-                        <span className="text-brand font-black truncate max-w-[120px]">
+                        <span className={`font-black truncate max-w-[120px] ${isDark ? 'text-amber-400' : 'text-brand'}`}>
                           {hdNextBooking ? hdNextBooking.customerName : 'ยังไม่มีจอง'}
                         </span>
                         {hdNextBooking && (
-                          <span className="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded font-mono font-bold">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-bold ${
+                            isDark ? 'bg-amber-500/20 text-amber-300' : 'bg-brand/10 text-brand'
+                          }`}>
                             {hdNextBooking.startTime}
                           </span>
                         )}
@@ -478,12 +648,18 @@ export default function DisplayView({
 
         {/* RIGHT COLUMN: UPCOMING QUEUES (คิวถัดไปที่กำลังรอ) - TAKES 5/12 COLS */}
         <div className="lg:col-span-5 space-y-6">
-          <div className="flex items-center justify-between border-b-2 border-stone-300 pb-3">
-            <h2 className="text-2xl sm:text-3xl font-serif font-black text-stone-900 flex items-center gap-2">
-              <ArrowRight className="w-7 h-7 text-brand shrink-0" />
+          <div className={`flex items-center justify-between border-b-2 pb-3 ${
+            isDark ? 'border-stone-800' : 'border-stone-300'
+          }`}>
+            <h2 className={`text-2xl sm:text-3xl font-serif font-black flex items-center gap-2 ${
+              isDark ? 'text-stone-100' : 'text-stone-900'
+            }`}>
+              <ArrowRight className={`w-7 h-7 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
               <span>ลำดับคิวถัดไป (Upcoming Queues)</span>
             </h2>
-            <span className="bg-brand text-white font-mono font-black text-sm px-4 py-1.5 rounded-full shrink-0 animate-pulse">
+            <span className={`font-mono font-black text-sm px-4 py-1.5 rounded-full shrink-0 animate-pulse ${
+              isDark ? 'bg-amber-500 text-stone-950 font-black' : 'bg-brand text-white'
+            }`}>
               {upcomingBookings.length} คิว
             </span>
           </div>
@@ -494,34 +670,52 @@ export default function DisplayView({
                 return (
                   <div 
                     key={booking.id}
-                    className="bg-white border-2 border-stone-200/90 hover:border-brand/45 rounded-3xl p-6 shadow-xs flex items-center justify-between gap-4 transition-all duration-300"
+                    className={`border-2 rounded-3xl p-6 shadow-xs flex items-center justify-between gap-4 transition-all duration-300 ${
+                      isDark
+                        ? 'bg-stone-900/90 border-stone-800 hover:border-amber-500/60 text-stone-100'
+                        : 'bg-white border-stone-200/90 hover:border-brand/45 text-stone-900'
+                    }`}
                   >
                     <div className="flex items-center gap-5 min-w-0">
                       {/* Queue Number Badge */}
-                      <div className="w-14 h-14 rounded-2xl bg-stone-100 text-stone-850 border-2 border-stone-300 flex items-center justify-center font-serif font-black text-2xl shrink-0 shadow-xs">
+                      <div className={`w-14 h-14 rounded-2xl border-2 flex items-center justify-center font-serif font-black text-2xl shrink-0 shadow-xs ${
+                        isDark
+                          ? 'bg-stone-800 text-amber-400 border-stone-700'
+                          : 'bg-stone-100 text-stone-850 border-stone-300'
+                      }`}>
                         {index + 1}
                       </div>
 
                       <div className="min-w-0">
                         {/* Time slot */}
-                        <div className="flex items-center gap-2 text-stone-500 text-sm sm:text-base font-mono font-black">
-                          <Clock className="w-4.5 h-4.5 text-brand shrink-0 animate-pulse" />
+                        <div className={`flex items-center gap-2 text-sm sm:text-base font-mono font-black ${
+                          isDark ? 'text-amber-300' : 'text-stone-500'
+                        }`}>
+                          <Clock className={`w-4.5 h-4.5 shrink-0 animate-pulse ${isDark ? 'text-amber-400' : 'text-brand'}`} />
                           <span>เวลา {formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
                         </div>
                         {/* Customer Name - LARGE (optimized for far-distance viewing) */}
-                        <h4 className="text-2xl sm:text-3xl md:text-4xl font-serif font-black text-stone-900 break-words tracking-tight mt-2.5 leading-tight">
+                        <h4 className={`text-2xl sm:text-3xl md:text-4xl font-serif font-black break-words tracking-tight mt-2.5 leading-tight ${
+                          isDark ? 'text-stone-100' : 'text-stone-900'
+                        }`}>
                           {booking.customerName}
                         </h4>
                         {/* Preferred Barber */}
-                        <p className="text-xs sm:text-base text-stone-600 font-bold mt-2.5 flex items-center gap-2">
+                        <p className={`text-xs sm:text-base font-bold mt-2.5 flex items-center gap-2 ${
+                          isDark ? 'text-stone-400' : 'text-stone-600'
+                        }`}>
                           <Scissors className="w-4 h-4 text-stone-400" />
-                          <span>ช่างที่ดูแล: <span className="text-stone-850 font-black">ช่าง{getHairdresserName(booking.hairdresserId)}</span></span>
+                          <span>ช่างที่ดูแล: <span className={`font-black ${isDark ? 'text-stone-200' : 'text-stone-850'}`}>ช่าง{getHairdresserName(booking.hairdresserId)}</span></span>
                         </p>
                       </div>
                     </div>
 
                     <div className="shrink-0 flex flex-col items-end gap-1.5">
-                      <span className="text-xs sm:text-sm bg-brand/10 text-brand border-2 border-brand/25 font-black px-4 py-2 rounded-2xl animate-pulse">
+                      <span className={`text-xs sm:text-sm border-2 font-black px-4 py-2 rounded-2xl animate-pulse ${
+                        isDark
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                          : 'bg-brand/10 text-brand border-brand/25'
+                      }`}>
                         เตรียมตัว
                       </span>
                     </div>
@@ -530,20 +724,26 @@ export default function DisplayView({
               })}
 
               {upcomingBookings.length > 6 && (
-                <div className="bg-[#FAF8F5] border border-stone-200 border-dashed rounded-2xl p-4 text-center">
-                  <p className="text-xs text-stone-500 font-bold font-sans">
+                <div className={`border border-dashed rounded-2xl p-4 text-center ${
+                  isDark ? 'bg-stone-900/60 border-stone-800' : 'bg-[#FAF8F5] border-stone-200'
+                }`}>
+                  <p className={`text-xs font-bold font-sans ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
                     และยังมีคิวอื่นอีก {upcomingBookings.length - 6} รายการรอถัดไปในวันนี้...
                   </p>
                 </div>
               )}
             </div>
           ) : (
-            <div className="bg-white border border-stone-200/90 rounded-3xl p-12 text-center space-y-4 shadow-xs" id="no-upcoming-queues">
-              <div className="w-16 h-16 bg-stone-100 rounded-full flex items-center justify-center mx-auto text-3xl">
+            <div className={`border rounded-3xl p-12 text-center space-y-4 shadow-xs ${
+              isDark ? 'bg-stone-900/60 border-stone-800 text-stone-200' : 'bg-white border-stone-200/90 text-stone-700'
+            }`} id="no-upcoming-queues">
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto text-3xl ${
+                isDark ? 'bg-stone-800' : 'bg-stone-100'
+              }`}>
                 📅
               </div>
-              <h3 className="text-xl font-serif font-bold text-stone-700">ไม่มีคิวที่รอนัดถัดไปวันนี้</h3>
-              <p className="text-sm text-stone-500 max-w-sm mx-auto leading-relaxed">
+              <h3 className={`text-xl font-serif font-bold ${isDark ? 'text-stone-200' : 'text-stone-700'}`}>ไม่มีคิวที่รอนัดถัดไปวันนี้</h3>
+              <p className={`text-sm max-w-sm mx-auto leading-relaxed ${isDark ? 'text-stone-400' : 'text-stone-500'}`}>
                 ยินดีด้วย คิวจองของวันทำงานในวันนี้เสร็จสิ้นหมดแล้ว หรือยังไม่มีลูกค้าลงทะเบียนคิวล่วงหน้าเพิ่มเติมสำหรับวันนี้
               </p>
             </div>
@@ -553,12 +753,16 @@ export default function DisplayView({
       </div>
 
       {/* 3. Footer Banner */}
-      <div className="mt-12 bg-stone-earth border border-stone-850 p-4.5 rounded-2xl text-center shadow-md flex flex-col sm:flex-row items-center justify-between gap-3" id="display-footer">
-        <div className="flex items-center gap-2 text-[#DBCBB5] font-bold text-xs">
+      <div className={`mt-12 border p-4.5 rounded-2xl text-center shadow-md flex flex-col sm:flex-row items-center justify-between gap-3 transition-colors duration-300 ${
+        isDark 
+          ? 'bg-stone-900 border-stone-800 text-stone-300' 
+          : 'bg-stone-earth border-stone-850 text-[#DBCBB5]'
+      }`} id="display-footer">
+        <div className="flex items-center gap-2 font-bold text-xs">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
           <span>ระบบจองคิวออนไลน์ BARBER PRO เชื่อมต่อฐานข้อมูลสดแบบเรียลไทม์</span>
         </div>
-        <p className="text-[10px] text-stone-400">
+        <p className="text-[10px] opacity-80">
           กรุณามาถึงก่อนเวลาคิวจองอย่างน้อย 5-10 นาที หากมาช้ากว่าเวลา คิวอาจเลื่อนโดยอัตโนมัติ ขอบพระคุณค่ะ/ครับ
         </p>
       </div>

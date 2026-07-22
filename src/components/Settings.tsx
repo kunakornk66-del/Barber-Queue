@@ -4,8 +4,8 @@
  */
 
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
-import { Hairdresser } from '../types';
-import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link, Sparkles, RefreshCw, Clock } from 'lucide-react';
+import { Hairdresser, StaffRecorder } from '../types';
+import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle } from 'lucide-react';
 
 const PRESET_LOGOS = [
   {
@@ -39,6 +39,9 @@ interface SettingsProps {
   onAddHairdresser: (name: string) => void;
   onDeleteHairdresser: (id: string) => void;
   onToggleHairdresserLeave: (id: string, currentlyLeave: boolean) => void;
+  recorders: StaffRecorder[];
+  onAddRecorder: (name: string, role?: string) => void;
+  onDeleteRecorder: (id: string) => void;
   shopName: string;
   onUpdateShopName: (name: string) => void;
   adminPin: string;
@@ -60,6 +63,9 @@ export default function Settings({
   onAddHairdresser,
   onDeleteHairdresser,
   onToggleHairdresserLeave,
+  recorders,
+  onAddRecorder,
+  onDeleteRecorder,
   shopName,
   onUpdateShopName,
   adminPin,
@@ -79,6 +85,35 @@ export default function Settings({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hairdresserToDelete, setHairdresserToDelete] = useState<string | null>(null);
+
+  // Recorders (Non-barber staff like receptionists, cashiers, owners) settings states
+  const [newRecorderName, setNewRecorderName] = useState('');
+  const [newRecorderRole, setNewRecorderRole] = useState('เจ้าของร้าน');
+  const [recorderError, setRecorderError] = useState<string | null>(null);
+  const [recorderSuccess, setRecorderSuccess] = useState<string | null>(null);
+  const [recorderToDelete, setRecorderToDelete] = useState<string | null>(null);
+
+  const handleAddRecorderSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    setRecorderError(null);
+    setRecorderSuccess(null);
+
+    const trimmed = newRecorderName.trim();
+    if (!trimmed) {
+      setRecorderError('กรุณากรอกชื่อผู้บันทึก');
+      return;
+    }
+
+    if (recorders.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) {
+      setRecorderError(`มีชื่อผู้บันทึก "${trimmed}" ในระบบแล้ว`);
+      return;
+    }
+
+    onAddRecorder(trimmed, newRecorderRole);
+    setNewRecorderName('');
+    setRecorderSuccess(`เพิ่มรายชื่อผู้บันทึก "${trimmed} (${newRecorderRole})" เรียบร้อยแล้ว!`);
+    setTimeout(() => setRecorderSuccess(null), 3000);
+  };
   
   // Shop opening/closing hours settings states
   const [hoursSuccess, setHoursSuccess] = useState(false);
@@ -366,7 +401,7 @@ export default function Settings({
                 <input
                   type="text"
                   id="shop-name-input"
-                  placeholder="ป้อนชื่อร้านตัดผมของคุณ เช่น BARBER PRO"
+                  placeholder="ป้อนชื่อร้านตัดผมของคุณ"
                   value={newShopName}
                   onChange={(e) => setNewShopName(e.target.value)}
                   maxLength={30}
@@ -666,7 +701,7 @@ export default function Settings({
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="url"
-                      placeholder="เช่น https://www:your-site.com/logo.png"
+                      placeholder=""
                       value={externalLogoUrl}
                       onChange={(e) => setExternalLogoUrl(e.target.value)}
                       className="flex-1 px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-stone-800 bg-white placeholder:text-stone-350"
@@ -786,7 +821,7 @@ export default function Settings({
                   type="text"
                   maxLength={12}
                   id="admin-pin-input"
-                  placeholder="ป้อนรหัส PIN ตัวเลขใหม่ (เช่น 1234)"
+                  placeholder="ป้อนรหัสผ่าน"
                   value={newPinWord}
                   onChange={(e) => setNewPinWord(e.target.value.replace(/[^0-9]/g, ''))}
                   className="w-full px-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-mono text-lg font-bold text-stone-900"
@@ -885,7 +920,6 @@ export default function Settings({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="barbers-list-settings">
               {hairdressers.length > 0 ? (
                 hairdressers.map((hd) => {
-                  const isDeleting = hairdresserToDelete === hd.id;
                   return (
                     <div
                       key={hd.id}
@@ -908,53 +942,29 @@ export default function Settings({
                       </div>
 
                       {/* Deletion control */}
-                      {!isDeleting ? (
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
-                            className={`px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                              hd.onLeave 
-                                ? 'bg-amber-100 hover:bg-amber-250 text-amber-800 hover:text-amber-900 border border-amber-200' 
-                                : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200/65'
-                            }`}
-                            title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน (จะไม่ปรากฏในแบบฟอร์มจอง)"}
-                          >
-                            {hd.onLeave ? '🔓 เปิดคิว' : '🔕 ปิดคิว/ลางาน'}
-                          </button>
-                          <button
-                            type="button"
-                            id={`barber-delete-trigger-${hd.id}`}
-                            onClick={() => setHairdresserToDelete(hd.id)}
-                            className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                            title="ลบรายชื่อช่างนี้ออก"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5" id={`delete-confirmation-barber-${hd.id}`}>
-                          <button
-                            type="button"
-                            id={`cancel-delete-barber-${hd.id}`}
-                            onClick={() => setHairdresserToDelete(null)}
-                            className="px-2 py-1 text-[10px] bg-stone-200 text-stone-800 font-semibold rounded-lg hover:bg-stone-300 transition-colors cursor-pointer"
-                          >
-                            ยกเลิก
-                          </button>
-                          <button
-                            type="button"
-                            id={`confirm-delete-barber-${hd.id}`}
-                            onClick={() => {
-                              onDeleteHairdresser(hd.id);
-                              setHairdresserToDelete(null);
-                            }}
-                            className="px-2.5 py-1 text-[10px] bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-colors cursor-pointer shadow-xs"
-                          >
-                            ลบ
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
+                          className={`px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                            hd.onLeave 
+                              ? 'bg-amber-100 hover:bg-amber-250 text-amber-800 hover:text-amber-900 border border-amber-200' 
+                              : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200/65'
+                          }`}
+                          title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน (จะไม่ปรากฏในแบบฟอร์มจอง)"}
+                        >
+                          {hd.onLeave ? '🔓 เปิดคิว' : '🔕 ปิดคิว/ลางาน'}
+                        </button>
+                        <button
+                          type="button"
+                          id={`barber-delete-trigger-${hd.id}`}
+                          onClick={() => setHairdresserToDelete(hd.id)}
+                          className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                          title="ลบรายชื่อช่างนี้ออก"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })
@@ -974,13 +984,257 @@ export default function Settings({
               <p className="font-bold text-stone-800">คำชี้แจงระบบช่างแบบเชื่อมโยง:</p>
               <ul className="list-disc pl-4 space-y-1 mt-1 font-light text-[11px]">
                 <li>การลบช่างจากตรงนี้ คิวเก่าที่มีชื่อช่างคนนี้จะยังแสดงชื่อเดิมตามปกติ (สืบทอดข้อมูลไว้ให้อ้างอิงปลอดภัย)</li>
-                <li>คุณจำเป็นต้องมีช่างอย่างน้อยหนึ่งชื่อเพื่อเป็น <strong>"ผู้บันทึก"</strong> ในหน้ารายแรก</li>
+                <li>ช่างในร้านทุกคนจะปรากฏเป็นตัวเลือกในช่องผู้ลงคิวจองและช่องผู้บันทึกคิวอัตโนมัติ</li>
               </ul>
             </div>
           </div>
 
         </div>
       </div>
+
+      {/* Non-Barber Staff Recorders Management Card */}
+      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="recorders-settings-card">
+        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+          <div>
+            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+              <UserCheck className="w-5 h-5 text-brand" /> จัดการรายชื่อผู้บันทึกคิว (เจ้าของร้าน / Reception / แคชเชียร์)
+            </h2>
+            <p className="text-stone-400 text-xs mt-1 font-light">
+              เพิ่มรายชื่อพนักงานหน้าร้านหรือเจ้าของร้านที่ไม่ใช่ช่างตัดผม เพื่อให้สามารถเลือกเป็น "ผู้บันทึกคิว" ในแบบฟอร์มจองคิวได้
+            </p>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 space-y-6">
+          <form onSubmit={handleAddRecorderSubmit} className="space-y-4">
+            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider pb-1 border-b border-stone-100">
+              ➕ เพิ่มรายชื่อผู้บันทึกคิวใหม่ (พนักงานต้อนรับ / เจ้าของร้าน)
+            </h3>
+
+            {recorderError && (
+              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-shake" id="add-recorder-error">
+                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                <span>{recorderError}</span>
+              </div>
+            )}
+
+            {recorderSuccess && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-fade-in" id="add-recorder-success">
+                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{recorderSuccess}</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="sm:col-span-1">
+                <label className="block text-[11px] font-bold text-stone-600 mb-1">ตำแหน่ง / บทบาท</label>
+                <select
+                  value={newRecorderRole}
+                  onChange={(e) => setNewRecorderRole(e.target.value)}
+                  className="w-full px-3 py-3 text-xs rounded-2xl border border-stone-200 bg-stone-50 font-bold text-stone-800 outline-none focus:border-brand"
+                >
+                  <option value="เจ้าของร้าน">👑 เจ้าของร้าน</option>
+                  <option value="พนักงานต้อนรับ">🛎️ พนักงานต้อนรับ (Reception)</option>
+                  <option value="แคชเชียร์">💵 แคชเชียร์</option>
+                  <option value="ผู้จัดการร้าน">👔 ผู้จัดการร้าน</option>
+                  <option value="พนักงาน">👤 พนักงานทั่วไป</option>
+                </select>
+              </div>
+
+              <div className="sm:col-span-2 flex gap-2 items-end">
+                <div className="flex-1">
+                  <label className="block text-[11px] font-bold text-stone-600 mb-1">ชื่อผู้บันทึก</label>
+                  <input
+                    type="text"
+                    placeholder="ป้อนชื่อผู้บันทึก (เช่น คุณดาว, Reception 1)"
+                    value={newRecorderName}
+                    onChange={(e) => setNewRecorderName(e.target.value)}
+                    className="w-full px-4 py-3 text-xs rounded-2xl border border-stone-200 focus:border-brand outline-none font-bold text-stone-900"
+                    required
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-5 py-3 bg-brand hover:bg-brand-dark text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> เพิ่มผู้บันทึก
+                </button>
+              </div>
+            </div>
+          </form>
+
+          {/* Current Recorders List */}
+          <div className="space-y-3 pt-4 border-t border-stone-100">
+            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+              📋 รายชื่อผู้บันทึกหน้าร้านปัจจุบัน ({recorders.length} ท่าน)
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="recorders-list-settings">
+              {recorders.length > 0 ? (
+                recorders.map((rec) => {
+                  return (
+                    <div
+                      key={rec.id}
+                      className="border border-stone-200/80 bg-stone-50/60 rounded-2xl p-3.5 flex justify-between items-center gap-3 hover:bg-white transition-all"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-brand/10 border border-brand/30 text-brand font-bold text-xs flex items-center justify-center shrink-0">
+                          {rec.name.slice(0, 2)}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-xs text-stone-900 truncate">{rec.name}</h4>
+                          <span className="inline-block text-[10px] font-semibold text-stone-500 bg-stone-200/70 px-2 py-0.5 rounded-md mt-0.5">
+                            {rec.role || 'พนักงาน'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        id={`recorder-delete-trigger-${rec.id}`}
+                        onClick={() => setRecorderToDelete(rec.id)}
+                        className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shrink-0"
+                        title="ลบรายชื่อผู้บันทึกนี้"
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="col-span-1 sm:col-span-2 p-6 border border-dashed border-stone-200 rounded-2xl text-center bg-stone-50">
+                  <p className="text-xs text-stone-500 font-medium">ยังไม่มีผู้บันทึกประเภทพนักงานต้อนรับ/เจ้าของร้าน</p>
+                  <p className="text-[10px] text-stone-400 mt-1">ช่างทำผมทุกคนสามารถเลือกเป็นผู้บันทึกคิวได้อยู่แล้ว หรือเพิ่มชื่อเจ้าของร้านตรงนี้ได้เลย</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation Modal for Hairdresser Deletion */}
+      {(() => {
+        const selectedHairdresserForDelete = hairdressers.find(h => h.id === hairdresserToDelete);
+        if (!selectedHairdresserForDelete) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in" id="delete-hairdresser-modal-overlay">
+            <div className="absolute inset-0" onClick={() => setHairdresserToDelete(null)} />
+            <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 shadow-2xl relative z-10 p-6 space-y-5 animate-scale-up" id="delete-hairdresser-modal">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-stone-900 text-base">ยืนยันการลบรายชื่อช่าง</h3>
+                  <p className="text-xs text-stone-500 font-light">โปรดตรวจสอบก่อนยืนยันการลบช่างออก</p>
+                </div>
+              </div>
+
+              <div className="bg-red-50/70 border border-red-200/60 rounded-2xl p-4 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-stone-700">
+                  <span className="text-stone-500">ชื่อช่าง:</span>
+                  <span className="font-bold text-stone-900 text-sm">ช่าง{selectedHairdresserForDelete.name}</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-700">
+                  <span className="text-stone-500">สถานะปัจจุบัน:</span>
+                  <span className={`font-bold ${selectedHairdresserForDelete.onLeave ? 'text-amber-600' : 'text-emerald-700'}`}>
+                    {selectedHairdresserForDelete.onLeave ? 'ลางาน / ปิดคิว' : 'ปฏิบัติงานปกติ'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-stone-100 p-3.5 rounded-2xl border border-stone-200 text-stone-600 text-xs leading-relaxed space-y-1">
+                <p className="font-bold text-stone-800">💡 สิ่งที่จะเกิดขึ้นหลังลบ:</p>
+                <ul className="list-disc pl-4 text-[11px] space-y-1 text-stone-600">
+                  <li>คิวเก่าที่มีชื่อช่างคนนี้จะยังแสดงชื่อเดิมตามปกติเพื่ออ้างอิงย้อนหลัง</li>
+                  <li>ชื่อช่างคนนี้จะถูกถอดออกจากตัวเลือกการลงคิวใหม่ทั้งหมด</li>
+                </ul>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  id="cancel-delete-hairdresser-btn"
+                  onClick={() => setHairdresserToDelete(null)}
+                  className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  id="confirm-delete-hairdresser-btn"
+                  onClick={() => {
+                    onDeleteHairdresser(selectedHairdresserForDelete.id);
+                    setHairdresserToDelete(null);
+                  }}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Trash2 className="w-4 h-4" /> ยืนยันลบช่าง
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Confirmation Modal for Recorder Deletion */}
+      {(() => {
+        const selectedRecorderForDelete = recorders.find(r => r.id === recorderToDelete);
+        if (!selectedRecorderForDelete) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in" id="delete-recorder-modal-overlay">
+            <div className="absolute inset-0" onClick={() => setRecorderToDelete(null)} />
+            <div className="bg-white rounded-3xl max-w-md w-full border border-stone-200 shadow-2xl relative z-10 p-6 space-y-5 animate-scale-up" id="delete-recorder-modal">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-serif font-bold text-stone-900 text-base">ยืนยันการลบรายชื่อผู้บันทึก</h3>
+                  <p className="text-xs text-stone-500 font-light">โปรดตรวจสอบก่อนยืนยันการลบผู้บันทึกออก</p>
+                </div>
+              </div>
+
+              <div className="bg-red-50/70 border border-red-200/60 rounded-2xl p-4 space-y-2 text-xs">
+                <div className="flex justify-between items-center text-stone-700">
+                  <span className="text-stone-500">ชื่อผู้บันทึก:</span>
+                  <span className="font-bold text-stone-900 text-sm">{selectedRecorderForDelete.name}</span>
+                </div>
+                <div className="flex justify-between items-center text-stone-700">
+                  <span className="text-stone-500">ตำแหน่ง / บทบาท:</span>
+                  <span className="font-bold text-brand-dark">{selectedRecorderForDelete.role || 'พนักงาน'}</span>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 p-3.5 rounded-2xl text-stone-700 text-xs leading-relaxed">
+                ⚠️ <strong>คำเตือน:</strong> หากลบแล้ว ชื่อผู้บันทึกนี้จะไม่ปรากฏในตัวเลือกแบบฟอร์มจองคิวอีกต่อไป (แต่ข้อมูลคิวในอดีตยังถูกบันทึกไว้อย่างปลอดภัย)
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  id="cancel-delete-recorder-btn"
+                  onClick={() => setRecorderToDelete(null)}
+                  className="flex-1 py-3 bg-stone-100 hover:bg-stone-200 text-stone-800 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  id="confirm-delete-recorder-btn"
+                  onClick={() => {
+                    onDeleteRecorder(selectedRecorderForDelete.id);
+                    setRecorderToDelete(null);
+                  }}
+                  className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white rounded-2xl text-xs font-bold transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                >
+                  <Trash2 className="w-4 h-4" /> ยืนยันลบผู้บันทึก
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

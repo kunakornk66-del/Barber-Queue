@@ -13,6 +13,12 @@ export interface Hairdresser {
   breakUntil?: string; // ISO string representing when they will finish break
 }
 
+export interface StaffRecorder {
+  id: string;
+  name: string;
+  role?: string; // e.g. 'เจ้าของร้าน', 'พนักงานต้อนรับ (Reception)', 'แคชเชียร์', 'อื่นๆ'
+}
+
 export interface Booking {
   id: string;
   date: string;       // YYYY-MM-DD
@@ -25,6 +31,7 @@ export interface Booking {
   recordedBy: string; // ช่างผู้บันทึก (Hairdresser ID or Name)
   createdAt: string;  // ISO timestamp
   isAnyBarber?: boolean; // แท็กบอกว่าจองแบบ "ไม่ระบุช่าง" แต่ระบบสุ่มช่างว่างให้
+  status?: 'waiting' | 'in-progress' | 'completed' | 'cancelled';
 }
 
 export interface LeaveRecord {

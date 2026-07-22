@@ -332,7 +332,7 @@ export default function LeaveManager({
               </label>
               <input
                 type="text"
-                placeholder="เช่น ลากิจเช้า, ไปโรงพยาบาล, ติดพักเบรก"
+                placeholder=""
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}
                 className="w-full text-xs px-3.5 py-3 rounded-xl border border-stone-205 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white placeholder:text-stone-400 font-medium"

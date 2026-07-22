@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
-import { Hairdresser, Booking, LeaveRecord } from './types';
+import { useState, useEffect, useRef } from 'react';
+import { Hairdresser, Booking, LeaveRecord, StaffRecorder } from './types';
 import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink } from 'lucide-react';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, BellOff, BellRing, Volume2 } from 'lucide-react';
 
 // Import Firebase dependencies
 import { db, handleFirestoreError, OperationType } from './firebase';
@@ -31,21 +31,37 @@ const SEED_HAIRDRESSERS: Hairdresser[] = [
   { id: 'hd-4', name: 'เจี๊ยบ (Jeab)' }
 ];
 
+const DEFAULT_RECORDERS: StaffRecorder[] = [
+  { id: 'rec-1', name: 'เจ้าของร้าน', role: 'เจ้าของร้าน' },
+  { id: 'rec-2', name: 'พนักงานต้อนรับ (Reception)', role: 'พนักงานต้อนรับ' }
+];
+
 export default function App() {
   const [hairdressers, setHairdressers] = useState<Hairdresser[]>([]);
+  const [recorders, setRecorders] = useState<StaffRecorder[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [leaves, setLeaves] = useState<LeaveRecord[]>([]); // 0 = ลงคิว, 1 = รายการจอง, 2 = ปิดคิว/ลางาน, 3 = ตั้งค่า
   const [activeTab, setActiveTab] = useState<number>(0); 
   const [activeRecorder, setActiveRecorder] = useState<string>('');
+  const [activeToast, setActiveToast] = useState<{ title: string; body: string; time: string } | null>(null);
   const [shopName, setShopName] = useState<string>('BARBER PRO');
   const [shopLogoUrl, setShopLogoUrl] = useState<string>('');
   const [slotDuration, setSlotDuration] = useState<number>(30); // Default to 30 minutes
   const [shopHolidays, setShopHolidays] = useState<number[]>([]); // Sunday = 0, Monday = 1, etc.
   const [shopOpenTime, setShopOpenTime] = useState<string>('10:00');
   const [shopCloseTime, setShopCloseTime] = useState<string>('21:00');
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
   const [isFullscreenDisplay, setIsFullscreenDisplay] = useState<boolean>(false);
   const [showTvInstructions, setShowTvInstructions] = useState<boolean>(false);
+
+  // Ticking timer for real-time shop status update
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   // Dynamic set activeShopEmail with multiple robust URL parser fallbacks (query, hash, and pathnames)
   const [activeShopEmail, setActiveShopEmail] = useState<string | null>(() => {
@@ -106,6 +122,210 @@ export default function App() {
     // Default to null to show login portal on first visit
     return null;
   });
+
+  // Browser Notification states & permission tracking
+  const [notificationsEnabled, setNotificationsEnabled] = useState<boolean>(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default');
+
+  const notificationsEnabledRef = useRef(notificationsEnabled);
+  useEffect(() => {
+    notificationsEnabledRef.current = notificationsEnabled;
+  }, [notificationsEnabled]);
+
+  const hairdressersRef = useRef(hairdressers);
+  useEffect(() => {
+    hairdressersRef.current = hairdressers;
+  }, [hairdressers]);
+
+  const shopNameRef = useRef(shopName);
+  useEffect(() => {
+    shopNameRef.current = shopName;
+  }, [shopName]);
+
+  const shopLogoUrlRef = useRef(shopLogoUrl);
+  useEffect(() => {
+    shopLogoUrlRef.current = shopLogoUrl;
+  }, [shopLogoUrl]);
+
+  const isInitialBookingsLoadRef = useRef(true);
+
+  // Synchronize notification status when active shop email or permission changes
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationPermission(Notification.permission);
+      if (activeShopEmail) {
+        const saved = localStorage.getItem(`notification_enabled_${activeShopEmail}`);
+        if (saved === 'true' && Notification.permission === 'granted') {
+          setNotificationsEnabled(true);
+        } else {
+          setNotificationsEnabled(false);
+        }
+      }
+    }
+  }, [activeShopEmail]);
+
+  // Audio chime synthesizer for instant audio feedback on new bookings
+  const playChimeSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof window.AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const now = ctx.currentTime;
+      
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(659.25, now); // E5
+      gain1.gain.setValueAtTime(0.25, now);
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.35);
+
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+      gain2.gain.setValueAtTime(0.25, now + 0.12);
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc2.connect(gain2);
+      gain2.connect(ctx.destination);
+      osc2.start(now + 0.12);
+      osc2.stop(now + 0.55);
+    } catch (e) {
+      console.warn('Audio chime notice failed:', e);
+    }
+  };
+
+  // Auto dismiss in-app activeToast pop-up notification after 4 seconds
+  useEffect(() => {
+    if (activeToast) {
+      const timer = setTimeout(() => {
+        setActiveToast(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [activeToast]);
+
+  const triggerBookingNotification = (booking: Booking) => {
+    // 1. Play audio chime feedback
+    playChimeSound();
+
+    const barber = hairdressersRef.current.find(h => h.id === booking.hairdresserId);
+    const barberName = barber ? barber.name : 'ไม่ระบุ';
+    const storeName = shopNameRef.current || 'BARBER PRO';
+
+    // 2. Display live in-app floating banner toast notice
+    setActiveToast({
+      title: `🔔 มีคิวใหม่เข้ามาสดๆ! - ${storeName}`,
+      body: `คุณ${booking.customerName || 'ลูกค้า'} | ช่าง${barberName} | เวลา ${booking.startTime} - ${booking.endTime}น. (${booking.date})`,
+      time: 'เมื่อสักครู่'
+    });
+
+    // 3. Trigger Browser Pop-up notification if native permission is active
+    if (
+      typeof window !== 'undefined' &&
+      'Notification' in window &&
+      Notification.permission === 'granted' &&
+      notificationsEnabledRef.current
+    ) {
+      try {
+        const title = `🔔 มีคิวใหม่เข้ามา! - ${storeName}`;
+        const body = `ลูกค้า: คุณ${booking.customerName || 'ลูกค้า'}\nช่างดูแล: ช่าง${barberName}\nเวลา: ${booking.startTime} - ${booking.endTime}น. (${booking.date})`;
+        
+        const notification = new Notification(title, {
+          body,
+          icon: shopLogoUrlRef.current || undefined,
+          tag: `booking-${booking.id}`,
+        });
+
+        notification.onclick = () => {
+          window.focus();
+          notification.close();
+        };
+
+        // Auto close native popup after 4 seconds
+        setTimeout(() => {
+          try { notification.close(); } catch (e) {}
+        }, 4000);
+      } catch (e) {
+        console.warn('Browser Notification trigger warning:', e);
+      }
+    }
+  };
+
+  const toggleNotifications = async () => {
+    // Unlock Audio Context with chime audio on user click
+    playChimeSound();
+
+    if (!notificationsEnabled) {
+      setNotificationsEnabled(true);
+      if (activeShopEmail) {
+        localStorage.setItem(`notification_enabled_${activeShopEmail}`, 'true');
+      }
+
+      // Show instant toast confirmation
+      setActiveToast({
+        title: `🔔 เปิดระบบแจ้งเตือนคิวสำเร็จแล้ว!`,
+        body: `ระบบพร้อมส่งเสียง Chime และป้ายแจ้งเตือนสีทองบนหน้าจอทันทีเมื่อมีรายการจองคิวใหม่เข้ามา`,
+        time: 'ตอนนี้'
+      });
+
+      // Try browser native notification permission if supported
+      if (typeof window !== 'undefined' && 'Notification' in window) {
+        try {
+          if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+            const perm = await Notification.requestPermission();
+            setNotificationPermission(perm);
+          } else {
+            setNotificationPermission(Notification.permission);
+          }
+
+          if (Notification.permission === 'granted') {
+            const n = new Notification(`🔔 เปิดระบบแจ้งเตือนคิว - ${shopName || 'BARBER PRO'}`, {
+              body: 'เปิดใช้งานการแจ้งเตือนเบราว์เซอร์สำเร็จ!',
+              icon: shopLogoUrl || undefined,
+            });
+            setTimeout(() => { try { n.close(); } catch (e) {} }, 4000);
+          }
+        } catch (e) {
+          console.warn('Native notification permission warning (expected in sandboxed iframe):', e);
+        }
+      }
+    } else {
+      setNotificationsEnabled(false);
+      if (activeShopEmail) {
+        localStorage.setItem(`notification_enabled_${activeShopEmail}`, 'false');
+      }
+      setActiveToast({
+        title: `🔕 ปิดการแจ้งเตือนคิวแล้ว`,
+        body: `ปิดระบบส่งเสียงและป้ายแจ้งเตือนเรียบร้อย`,
+        time: 'ตอนนี้'
+      });
+    }
+  };
+
+  const testNotification = () => {
+    playChimeSound();
+    setActiveToast({
+      title: `🔔 [ทดสอบ] เสียงและป้ายแจ้งเตือน - ${shopName || 'BARBER PRO'}`,
+      body: 'ระบบสัญญาณเสียง Chime และป้ายแจ้งเตือนบนหน้าจอทำงานสมบูรณ์แบบ!',
+      time: 'เมื่อสักครู่'
+    });
+
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      try {
+        const n = new Notification(`🔔 [ทดสอบ] แจ้งเตือนคิวร้าน ${shopName || 'BARBER PRO'}`, {
+          body: 'ข้อความทดสอบการแจ้งเตือน: เสียงและ Pop-up ทำงานสมบูรณ์แบบ!',
+          icon: shopLogoUrl || undefined,
+        });
+        setTimeout(() => { try { n.close(); } catch (e) {} }, 4000);
+      } catch (e) {
+        console.warn('Native notification test warning:', e);
+      }
+    }
+  };
 
   // Admin & Manager states (Always unlocked by default as requested to remove admin mode restrictions completely)
   const isAdmin = true;
@@ -203,6 +423,49 @@ export default function App() {
     const thaiYear = d.getFullYear() + 543; // Convert to Buddhist Era
     
     return `${dayName}ที่ ${dateNum} ${monthName} พ.ศ. ${thaiYear}`;
+  };
+
+  // Real-time shop open/closed status helper
+  const getShopOpenStatus = () => {
+    const d = currentTime;
+    const currentDay = d.getDay(); // 0 = Sun, 1 = Mon ...
+    
+    if (shopHolidays && shopHolidays.includes(currentDay)) {
+      return {
+        isOpen: false,
+        statusText: 'ปิดวันหยุดประจำสัปดาห์',
+        timeText: 'วันนี้ร้านปิดทำการ',
+        badgeStyle: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+        dotStyle: 'bg-rose-500'
+      };
+    }
+
+    const nowMins = d.getHours() * 60 + d.getMinutes();
+    const [openH, openM] = (shopOpenTime || '10:00').split(':').map(Number);
+    const [closeH, closeM] = (shopCloseTime || '21:00').split(':').map(Number);
+    
+    const openMins = openH * 60 + openM;
+    const closeMins = closeH * 60 + closeM;
+
+    const isOpen = nowMins >= openMins && nowMins < closeMins;
+
+    if (isOpen) {
+      return {
+        isOpen: true,
+        statusText: 'เปิดให้บริการสด (OPEN)',
+        timeText: `เวลา ${shopOpenTime || '10:00'} - ${shopCloseTime || '21:00'} น.`,
+        badgeStyle: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+        dotStyle: 'bg-emerald-400 animate-ping'
+      };
+    } else {
+      return {
+        isOpen: false,
+        statusText: 'ปิดให้บริการ (CLOSED)',
+        timeText: `เปิดเวลา ${shopOpenTime || '10:00'} - ${shopCloseTime || '21:00'} น.`,
+        badgeStyle: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+        dotStyle: 'bg-amber-400'
+      };
+    }
   };
 
   // 1. Real-time Shop Title and PIN configuration from Firestore settings/config
@@ -399,21 +662,123 @@ export default function App() {
     return () => unsubscribe();
   }, [activeShopEmail]);
 
-  // Keep activeRecorder synchronized with first available barber when list changes
+  // Real-time Recorders list (Non-barber staff like receptionists or owners) from Firestore
   useEffect(() => {
-    if (hairdressers.length > 0) {
-      const exists = hairdressers.some(h => h.name === activeRecorder);
+    if (!activeShopEmail) return;
+
+    const localKey = `backup_recorders_${activeShopEmail}`;
+    const seededKey = `recorders_seeded_${activeShopEmail}`;
+    const savedLocal = localStorage.getItem(localKey);
+    const isSeeded = localStorage.getItem(seededKey) === 'true';
+
+    if (savedLocal) {
+      try {
+        setRecorders(JSON.parse(savedLocal));
+      } catch (e) {
+        console.warn("Error parsing local recorders backup:", e);
+      }
+    } else if (!isSeeded) {
+      setRecorders(DEFAULT_RECORDERS);
+    }
+
+    const colRef = collection(db, 'stores', activeShopEmail, 'recorders');
+    const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      if (snapshot.empty) {
+        // Only seed default recorders once on fresh store creation
+        if (!localStorage.getItem(seededKey)) {
+          localStorage.setItem(seededKey, 'true');
+          DEFAULT_RECORDERS.forEach(async (rec) => {
+            try {
+              await setDoc(doc(db, 'stores', activeShopEmail, 'recorders', rec.id), rec);
+            } catch (e) {
+              handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/recorders/${rec.id}`, false);
+            }
+          });
+          setRecorders(DEFAULT_RECORDERS);
+          localStorage.setItem(localKey, JSON.stringify(DEFAULT_RECORDERS));
+          return;
+        } else {
+          setRecorders([]);
+          localStorage.setItem(localKey, JSON.stringify([]));
+          return;
+        }
+      }
+
+      localStorage.setItem(seededKey, 'true');
+      const list: StaffRecorder[] = [];
+      snapshot.forEach((docSnap) => {
+        list.push(docSnap.data() as StaffRecorder);
+      });
+      setRecorders(list);
+      localStorage.setItem(localKey, JSON.stringify(list));
+      setFirestoreError(null);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/recorders`, false);
+    });
+
+    return () => unsubscribe();
+  }, [activeShopEmail]);
+
+  const handleAddRecorder = async (name: string, role: string = 'พนักงานต้อนรับ') => {
+    if (!activeShopEmail || !name.trim()) return;
+    const cleanName = name.trim();
+    const id = `rec-${Date.now()}`;
+    const newRec: StaffRecorder = { id, name: cleanName, role: role.trim() || 'พนักงาน' };
+
+    // Optimistic update
+    setRecorders(prev => {
+      const updated = [...prev, newRec];
+      localStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await setDoc(doc(db, 'stores', activeShopEmail, 'recorders', id), newRec);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `stores/${activeShopEmail}/recorders/${id}`, false);
+    }
+  };
+
+  const handleDeleteRecorder = async (id: string) => {
+    if (!activeShopEmail) return;
+
+    // Optimistic update
+    setRecorders(prev => {
+      const updated = prev.filter(r => r.id !== id);
+      localStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
+      return updated;
+    });
+
+    try {
+      await deleteDoc(doc(db, 'stores', activeShopEmail, 'recorders', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `stores/${activeShopEmail}/recorders/${id}`, false);
+    }
+  };
+
+  // Keep activeRecorder synchronized with first available option when lists change
+  useEffect(() => {
+    const allOptions = [
+      ...recorders.map(r => r.name),
+      ...hairdressers.map(h => h.name)
+    ];
+
+    if (allOptions.length > 0) {
+      const exists = allOptions.includes(activeRecorder);
       if (!exists) {
-        setActiveRecorder(hairdressers[0].name);
+        setActiveRecorder(allOptions[0]);
       }
     } else {
       setActiveRecorder('');
     }
-  }, [hairdressers, activeRecorder]);
+  }, [hairdressers, recorders, activeRecorder]);
 
   // 4. Real-time Bookings list from Firestore collection (Filtered on load for past-day pruning)
   useEffect(() => {
     if (!activeShopEmail) return;
+
+    // Reset initial load flag whenever shop email changes
+    isInitialBookingsLoadRef.current = true;
 
     // Load local fallback first
     const localKey = `backup_bookings_${activeShopEmail}`;
@@ -428,6 +793,21 @@ export default function App() {
 
     const colRef = collection(db, 'stores', activeShopEmail, 'bookings');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      // Check for newly added documents after initial load
+      if (!isInitialBookingsLoadRef.current) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added') {
+            const newBooking = change.doc.data() as Booking;
+            const todayStr = getTodayDateString();
+            if (newBooking.date >= todayStr) {
+              triggerBookingNotification(newBooking);
+            }
+          }
+        });
+      } else {
+        isInitialBookingsLoadRef.current = false;
+      }
+
       const list: Booking[] = [];
       snapshot.forEach((docSnap) => {
         list.push(docSnap.data() as Booking);
@@ -1063,6 +1443,29 @@ export default function App() {
   return (
     <div className="min-h-screen bg-bg-natural font-sans text-stone-800 pb-16 antialiased relative" id="barber-app-container">
       
+      {/* Floating Active Toast Notification Banner */}
+      {activeToast && (
+        <div className="fixed top-5 right-5 z-50 max-w-sm bg-amber-500 text-stone-950 p-4 rounded-2xl shadow-2xl border-2 border-amber-300 animate-fade-in flex items-start gap-3 transition-all duration-300">
+          <div className="p-2 bg-stone-950 text-amber-400 rounded-xl shrink-0">
+            <BellRing className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-1">
+              <h4 className="font-extrabold text-xs">{activeToast.title}</h4>
+              <span className="text-[9px] font-bold opacity-75">{activeToast.time}</span>
+            </div>
+            <p className="text-xs font-medium mt-1 leading-snug">{activeToast.body}</p>
+          </div>
+          <button 
+            onClick={() => setActiveToast(null)}
+            className="text-stone-950 hover:bg-amber-600/30 p-1 rounded-lg text-xs font-bold shrink-0 cursor-pointer"
+            title="ปิดการแสดงผล"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Firestore Connection/Service Error Banner */}
       {firestoreError && (
         <div className="bg-amber-500 text-stone-900 px-4 py-3 text-center text-xs font-bold flex flex-col sm:flex-row items-center justify-center gap-2 relative z-50 border-b border-amber-600/30 animate-fade-in" id="firestore-offline-warning">
@@ -1133,28 +1536,77 @@ export default function App() {
             </div>
           </div>
           
-          {/* Calendar Thai Date Display */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Calendar Thai Date & Barber Shop Real-time Open/Closed Status Display */}
+          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
             
-            {/* Live Buddhist Calendar Display */}
-            <div className="bg-stone-900/40 backdrop-blur-xs px-4 py-2.5 rounded-2xl border border-stone-700/50 flex items-center gap-2.5 shadow-inner">
-              <Calendar className="w-4 h-4 text-brand grow-0 shrink-0" />
-              <div className="text-right">
-                <p className="text-[9px] text-stone-500 font-bold uppercase tracking-wider">วันปัจจุบันในระบบ</p>
-                <p className="text-xs font-semibold text-brand-light font-serif">{getThaiLongDate()}</p>
+            {/* Live Thai Date with Barber Shop Branding Icons */}
+            <div className="bg-stone-900/60 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-amber-500/30 flex items-center gap-3 shadow-inner">
+              <div className="flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shrink-0">
+                <Scissors className="w-4 h-4 text-amber-400" />
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs">💈</span>
+                  <p className="text-[9px] text-stone-400 font-extrabold uppercase tracking-wider">วันปัจจุบันประจำสาขา</p>
+                </div>
+                <p className="text-xs font-bold text-amber-200 font-serif mt-0.5">{getThaiLongDate()}</p>
               </div>
             </div>
+
+            {/* Real-time Shop Open / Closed Status Badge */}
+            {(() => {
+              const status = getShopOpenStatus();
+              return (
+                <div className={`px-3.5 py-2.5 rounded-2xl border flex items-center gap-2.5 shadow-md ${status.badgeStyle}`} id="header-shop-status-badge">
+                  <span className="relative flex h-3 w-3 shrink-0">
+                    <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${status.dotStyle}`}></span>
+                    <span className={`relative inline-flex rounded-full h-3 w-3 ${status.isOpen ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                  </span>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-black uppercase tracking-tight">{status.statusText}</span>
+                    </div>
+                    <p className="text-[10px] font-mono opacity-85">{status.timeText}</p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* TV Mode Toggle Button */}
             <button
               type="button"
               id="header-tv-mode-btn"
               onClick={() => setIsFullscreenDisplay(true)}
-              className="bg-emerald-700 hover:bg-emerald-800 border border-emerald-600/30 text-white px-4 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md"
+              className="bg-emerald-700 hover:bg-emerald-800 border border-emerald-600/30 text-white px-3.5 py-2.5 rounded-2xl text-[11px] font-black transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md shrink-0"
               title="สลับหน้านี้เป็นโหมดจอทีวีคิวหน้าร้าน"
             >
               <Tv className="w-3.5 h-3.5 animate-pulse" />
               <span>เปิดจอทีวี (TV Mode)</span>
+            </button>
+
+            {/* Notification Quick Toggle in Header */}
+            <button
+              type="button"
+              id="header-notification-toggle-btn"
+              onClick={toggleNotifications}
+              className={`px-3.5 py-2.5 rounded-2xl text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-md border shrink-0 ${
+                notificationsEnabled
+                  ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 border-amber-400 font-extrabold'
+                  : 'bg-stone-800/80 hover:bg-stone-800 text-stone-300 border-stone-700'
+              }`}
+              title={notificationsEnabled ? 'ระบบแจ้งเตือนคิวเปิดอยู่ (กดเพื่อปิด)' : 'กดเพื่อเปิดรับ Browser Notification เมื่อมีคิวใหม่'}
+            >
+              {notificationsEnabled ? (
+                <>
+                  <BellRing className="w-3.5 h-3.5 text-stone-950 animate-bounce" />
+                  <span>แจ้งเตือนคิว: เปิดอยู่</span>
+                </>
+              ) : (
+                <>
+                  <BellOff className="w-3.5 h-3.5 text-stone-400" />
+                  <span>เปิดการแจ้งเตือนคิว</span>
+                </>
+              )}
             </button>
 
             {/* Logout Branch Button */}
@@ -1278,10 +1730,62 @@ export default function App() {
       {/* Main Workspace Frame */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in" id="primary-workspace">
 
+        {/* Quick Notification Status Bar for Shop Staff */}
+        <div className="bg-stone-900 text-stone-100 p-3.5 sm:p-4 rounded-2xl mb-6 shadow-sm border border-stone-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs" id="notification-control-bar">
+          <div className="flex items-center gap-3">
+            <div className={`p-2.5 rounded-xl shrink-0 ${notificationsEnabled ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-stone-800 text-stone-400'}`}>
+              {notificationsEnabled ? <BellRing className="w-5 h-5 animate-bounce" /> : <BellOff className="w-5 h-5" />}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-stone-100">ระบบแจ้งเตือนคิวใหม่ผ่าน Browser:</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  notificationsEnabled ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-stone-800 text-stone-400 border border-stone-700'
+                }`}>
+                  {notificationsEnabled ? '● เปิดใช้งานอยู่ (Live)' : '○ ปิดอยู่'}
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-0.5">
+                {notificationsEnabled 
+                  ? 'ส่งเสียงเตือน Chime และแสดง Pop-up ทันทีเมื่อมีรายการจองคิวใหม่เข้ามาในคอลเลกชัน Firestore'
+                  : 'กดเปิดการแจ้งเตือนเพื่อส่งเสียงเตือนและแจ้งเตือนผ่าน Browser ทันทีเมื่อมีลูกค้าลงคิวใหม่เข้ามา'
+                }
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+            {notificationsEnabled && (
+              <button
+                type="button"
+                id="test-notification-btn"
+                onClick={testNotification}
+                className="px-3 py-1.5 rounded-xl bg-stone-800 hover:bg-stone-700 text-amber-300 font-bold text-[11px] border border-stone-700 transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                title="ทดสอบส่งเสียงสัญญาณและ Pop-up แจ้งเตือน"
+              >
+                <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                <span>ทดสอบเสียง/แจ้งเตือน</span>
+              </button>
+            )}
+            <button
+              type="button"
+              id="toggle-notification-btn"
+              onClick={toggleNotifications}
+              className={`px-4 py-1.5 rounded-xl font-bold text-[11px] transition-all flex items-center gap-1.5 cursor-pointer active:scale-95 shadow-sm ${
+                notificationsEnabled
+                  ? 'bg-red-950/80 hover:bg-red-900 border border-red-800/60 text-red-200'
+                  : 'bg-amber-500 hover:bg-amber-600 text-stone-950 font-black'
+              }`}
+            >
+              {notificationsEnabled ? 'ปิดการแจ้งเตือน' : '🔔 เปิดการแจ้งเตือนคิว'}
+            </button>
+          </div>
+        </div>
+
         {activeTab === 0 && (
           <div>
             <BookingForm
               hairdressers={hairdressers}
+              recorders={recorders}
               bookings={bookings}
               leaves={leaves}
               onAddBooking={handleAddBooking}
@@ -1334,6 +1838,9 @@ export default function App() {
               onAddHairdresser={handleAddHairdresser}
               onDeleteHairdresser={handleDeleteHairdresser}
               onToggleHairdresserLeave={handleToggleHairdresserLeave}
+              recorders={recorders}
+              onAddRecorder={handleAddRecorder}
+              onDeleteRecorder={handleDeleteRecorder}
               shopName={shopName}
               onUpdateShopName={handleUpdateShopName}
               adminPin={adminPin}
@@ -1403,7 +1910,7 @@ export default function App() {
                         setPinError(false);
                       }
                     }}
-                    placeholder="ป้อนรหัสผ่าน (เช่น 1234)"
+                    placeholder="ป้อนรหัสผ่าน"
                     className="w-full text-center px-4 py-3 text-sm focus:ring-2 focus:ring-brand/10 rounded-2xl border border-stone-200 focus:border-brand outline-none transition-all placeholder:text-stone-400 font-mono text-lg font-bold text-stone-900"
                     autoFocus
                   />

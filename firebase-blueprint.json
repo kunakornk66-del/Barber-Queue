@@ -27,7 +27,8 @@
         "customerPhone": { "type": "string", "description": "Phone number of the customer" },
         "remarks": { "type": "string", "description": "Optional notes or additional services" },
         "recordedBy": { "type": "string", "description": "Name or ID of the recording hairdresser" },
-        "createdAt": { "type": "string", "description": "Timestamp of creation" }
+        "createdAt": { "type": "string", "description": "Timestamp of creation" },
+        "status": { "type": "string", "enum": ["waiting", "in-progress", "completed", "cancelled"], "description": "Current queue status" }
       },
       "required": ["id", "date", "startTime", "endTime", "customerName", "customerPhone", "recordedBy", "createdAt"]
     },
@@ -57,12 +58,27 @@
         "createdAt": { "type": "string", "description": "Timestamp of record creation" }
       },
       "required": ["id", "hairdresserId", "hairdresserName", "date", "startTime", "endTime", "details", "recorder", "createdAt"]
+    },
+    "StaffRecorder": {
+      "title": "StaffRecorder",
+      "description": "Represents staff recorders like receptionist, cashier or shop owner",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the staff recorder" },
+        "name": { "type": "string", "description": "Name of the staff recorder" },
+        "role": { "type": "string", "description": "Role or position of the recorder" }
+      },
+      "required": ["id", "name"]
     }
   },
   "firestore": {
     "stores/{shopEmail}/hairdressers/{hairdresserId}": {
       "schema": "Hairdresser",
       "description": "Hairdressers list for a specific shop"
+    },
+    "stores/{shopEmail}/recorders/{recorderId}": {
+      "schema": "StaffRecorder",
+      "description": "List of staff recorders for a specific shop"
     },
     "stores/{shopEmail}/bookings/{bookingId}": {
       "schema": "Booking",
