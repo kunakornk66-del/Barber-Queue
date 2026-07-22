@@ -610,17 +610,50 @@ export default function App() {
   // Firestore listener for Shop Services
   useEffect(() => {
     if (!activeShopEmail) return;
+
+    const localKey = `backup_services_${activeShopEmail}`;
+    const seededKey = `services_seeded_${activeShopEmail}`;
+    const savedLocal = localStorage.getItem(localKey);
+
+    if (savedLocal) {
+      try {
+        setServices(JSON.parse(savedLocal));
+      } catch (e) {
+        console.warn("Error parsing local services backup:", e);
+      }
+    } else {
+      setServices(DEFAULT_SERVICES);
+    }
+
     const servicesRef = collection(db, 'stores', activeShopEmail, 'services');
     const unsubscribe = onSnapshot(servicesRef, (snapshot) => {
-      if (!snapshot.empty) {
-        const loaded: ShopService[] = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as ShopService));
-        setServices(loaded);
-      } else {
-        setServices(DEFAULT_SERVICES);
+      if (snapshot.empty) {
+        if (!localStorage.getItem(seededKey)) {
+          localStorage.setItem(seededKey, 'true');
+          DEFAULT_SERVICES.forEach(async (srv) => {
+            try {
+              await setDoc(doc(db, 'stores', activeShopEmail, 'services', srv.id), srv);
+            } catch (e) {
+              handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/services/${srv.id}`, false);
+            }
+          });
+          setServices(DEFAULT_SERVICES);
+          localStorage.setItem(localKey, JSON.stringify(DEFAULT_SERVICES));
+          return;
+        } else {
+          setServices([]);
+          localStorage.setItem(localKey, JSON.stringify([]));
+          return;
+        }
       }
+
+      localStorage.setItem(seededKey, 'true');
+      const loaded: ShopService[] = snapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      } as ShopService));
+      setServices(loaded);
+      localStorage.setItem(localKey, JSON.stringify(loaded));
     }, (error) => {
       console.warn("Loading services error:", error);
     });
@@ -668,37 +701,74 @@ export default function App() {
 
   const handleAddService = async (serviceData: Omit<ShopService, 'id'>) => {
     if (!activeShopEmail) return;
+    const newId = `srv-${Date.now()}`;
+    const newService: ShopService = {
+      id: newId,
+      name: serviceData.name,
+      durationMinutes: Number(serviceData.durationMinutes) || 30,
+      price: serviceData.price !== undefined ? Number(serviceData.price) : 0,
+      category: serviceData.category || 'ทั่วไป'
+    };
+
+    // Optimistic update
+    setServices(prev => {
+      const updated = [...prev, newService];
+      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      return updated;
+    });
+
     try {
-      const newId = `srv-${Date.now()}`;
       const docRef = doc(db, 'stores', activeShopEmail, 'services', newId);
-      await setDoc(docRef, serviceData);
+      await setDoc(docRef, newService);
     } catch (e) {
       console.error("Error adding service:", e);
+      handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/services/${newId}`, false);
     }
   };
 
   const handleDeleteService = async (serviceId: string) => {
     if (!activeShopEmail) return;
+
+    // Optimistic update
+    setServices(prev => {
+      const updated = prev.filter(s => s.id !== serviceId);
+      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      return updated;
+    });
+
     try {
       const docRef = doc(db, 'stores', activeShopEmail, 'services', serviceId);
       await deleteDoc(docRef);
     } catch (e) {
       console.error("Error deleting service:", e);
+      handleFirestoreError(e, OperationType.DELETE, `stores/${activeShopEmail}/services/${serviceId}`, false);
     }
   };
 
   const handleUpdateService = async (updatedService: ShopService) => {
     if (!activeShopEmail) return;
+
+    const cleanService: ShopService = {
+      id: updatedService.id,
+      name: updatedService.name.trim(),
+      durationMinutes: Number(updatedService.durationMinutes) || 30,
+      price: updatedService.price !== undefined ? Number(updatedService.price) : 0,
+      category: updatedService.category || 'ทั่วไป'
+    };
+
+    // Optimistic update so UI updates immediately without waiting for server network roundtrip
+    setServices(prev => {
+      const updated = prev.map(s => s.id === cleanService.id ? cleanService : s);
+      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      return updated;
+    });
+
     try {
-      const docRef = doc(db, 'stores', activeShopEmail, 'services', updatedService.id);
-      await setDoc(docRef, {
-        name: updatedService.name,
-        durationMinutes: Number(updatedService.durationMinutes),
-        price: updatedService.price !== undefined ? Number(updatedService.price) : 0,
-        category: updatedService.category || 'ทั่วไป'
-      }, { merge: true });
+      const docRef = doc(db, 'stores', activeShopEmail, 'services', cleanService.id);
+      await setDoc(docRef, cleanService, { merge: true });
     } catch (e) {
       console.error("Error updating service:", e);
+      handleFirestoreError(e, OperationType.UPDATE, `stores/${activeShopEmail}/services/${cleanService.id}`, false);
     }
   };
 

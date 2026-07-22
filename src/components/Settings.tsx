@@ -820,15 +820,23 @@ export default function Settings({
 
                     if (isEditing) {
                       return (
-                        <div key={srv.id} className="p-3 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 col-span-1 sm:col-span-2">
+                        <form
+                          key={srv.id}
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSaveEditService(srv.id);
+                          }}
+                          className="p-3 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 col-span-1 sm:col-span-2 shadow-xs animate-fade-in"
+                        >
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
-                              <Edit2 className="w-3.5 h-3.5" /> กำลังแก้ไขรายการบริการ: {srv.name}
+                              <Edit2 className="w-3.5 h-3.5 text-amber-700" /> กำลังแก้ไขรายการบริการ: {srv.name}
                             </span>
                             <button
                               type="button"
                               onClick={() => setEditingServiceId(null)}
-                              className="text-stone-400 hover:text-stone-600 p-1"
+                              className="text-stone-400 hover:text-stone-600 p-1 rounded-lg transition-all cursor-pointer"
+                              title="ยกเลิก"
                             >
                               <X className="w-4 h-4" />
                             </button>
@@ -836,12 +844,13 @@ export default function Settings({
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div className="space-y-0.5">
-                              <label className="text-[10px] font-bold text-stone-700">ชื่อบริการ</label>
+                              <label className="text-[10px] font-bold text-stone-700">ชื่อบริการ *</label>
                               <input
                                 type="text"
+                                required
                                 value={editServiceName}
                                 onChange={(e) => setEditServiceName(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
                               />
                             </div>
 
@@ -850,7 +859,7 @@ export default function Settings({
                               <select
                                 value={editServiceCategory}
                                 onChange={(e) => setEditServiceCategory(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
                               >
                                 <option value="ตัดผม">ตัดผม</option>
                                 <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
@@ -865,7 +874,7 @@ export default function Settings({
                               <select
                                 value={editServiceDuration}
                                 onChange={(e) => setEditServiceDuration(Number(e.target.value))}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white"
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
                               >
                                 <option value={30}>30 นาที</option>
                                 <option value={45}>45 นาที</option>
@@ -880,9 +889,10 @@ export default function Settings({
                               <label className="text-[10px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
                               <input
                                 type="number"
+                                min="0"
                                 value={editServicePrice}
                                 onChange={(e) => setEditServicePrice(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white font-mono"
+                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white font-mono focus:border-brand outline-none"
                               />
                             </div>
                           </div>
@@ -891,20 +901,19 @@ export default function Settings({
                             <button
                               type="button"
                               onClick={() => setEditingServiceId(null)}
-                              className="px-3 py-1 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                              className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
                             >
                               ยกเลิก
                             </button>
                             <button
-                              type="button"
-                              onClick={() => handleSaveEditService(srv.id)}
-                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                              type="submit"
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
                             >
                               <Save className="w-3.5 h-3.5" />
                               <span>บันทึกการแก้ไข</span>
                             </button>
                           </div>
-                        </div>
+                        </form>
                       );
                     }
 
