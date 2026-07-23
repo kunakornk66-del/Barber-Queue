@@ -57,7 +57,7 @@ export default function DisplayView({
       return;
     }
 
-    const prevMap = new Map(prevBookingsRef.current.map(b => [b.id, b]));
+    const prevMap = new Map<string, Booking>((prevBookingsRef.current || []).map(b => [b.id, b]));
     const newlyChanged = new Set<string>();
 
     bookings.forEach(b => {

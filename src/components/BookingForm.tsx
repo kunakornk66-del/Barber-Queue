@@ -1277,56 +1277,56 @@ export default function BookingForm({
 
           {/* Quick Filter Bar */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-xs text-stone-600 font-semibold">
-              <Filter className="w-3.5 h-3.5 text-brand" /> ช่วงเวลา:
-            </div>
-            <div className="flex gap-1 bg-stone-50 p-1 rounded-xl border border-stone-100">
-              <button
-                type="button"
-                onClick={() => setTimeFilter('all')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  timeFilter === 'all'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
-                }`}
-              >
-                ทั้งหมด
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeFilter('morning')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  timeFilter === 'morning'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
-                }`}
-              >
-                🌅 เช้า
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeFilter('afternoon')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  timeFilter === 'afternoon'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
-                }`}
-              >
-                ☀️ บ่าย
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeFilter('evening')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  timeFilter === 'evening'
-                    ? 'bg-brand text-white shadow-xs'
-                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
-                }`}
-              >
-                🌙 ค่ำ
-              </button>
-            </div>
-          </div>
+                <div className="flex items-center gap-1.5 text-xs text-stone-600 font-semibold">
+                  <Filter className="w-3.5 h-3.5 text-brand" /> ช่วงเวลา:
+                </div>
+                <div className="flex gap-1 bg-stone-50 p-1 rounded-xl border border-stone-100">
+                  <button
+                    type="button"
+                    onClick={() => setTimeFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      timeFilter === 'all'
+                        ? 'bg-brand text-white shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                    }`}
+                  >
+                    ทั้งหมด
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeFilter('morning')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      timeFilter === 'morning'
+                        ? 'bg-brand text-white shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                    }`}
+                  >
+                    🌅 เช้า
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeFilter('afternoon')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      timeFilter === 'afternoon'
+                        ? 'bg-brand text-white shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                    }`}
+                  >
+                    ☀️ บ่าย
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeFilter('evening')}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      timeFilter === 'evening'
+                        ? 'bg-brand text-white shadow-xs'
+                        : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100/50'
+                    }`}
+                  >
+                    🌙 ค่ำ
+                  </button>
+                </div>
+              </div>
 
           {/* Instructions */}
           <div className="bg-brand-light/40 border border-brand/10 rounded-2xl p-3 flex gap-2.5 items-start">
@@ -1497,7 +1497,6 @@ export default function BookingForm({
             </div>
           </div>
         </div>
-
       </div>
 
       {/* Booking Overlap Collision Warning Pop-up Modal */}

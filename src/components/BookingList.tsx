@@ -461,23 +461,23 @@ export default function BookingList({
       
       {/* Information Prune Banner */}
       <div className="bg-brand-light border border-brand/20 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row gap-4 items-start md:items-center justify-between" id="prune-notice-banner">
-        <div className="flex gap-3.5 items-start">
-          <div className="w-10 h-10 rounded-2xl bg-brand/10 flex items-center justify-center text-brand shrink-0 mt-0.5 md:mt-0">
-            <Sparkles className="w-5 h-5" />
+            <div className="flex gap-3.5 items-start">
+              <div className="w-10 h-10 rounded-2xl bg-brand/10 flex items-center justify-center text-brand shrink-0 mt-0.5 md:mt-0">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2 font-serif">
+                  🧹 ระบบล้างประวัติอัจฉริยะ (Auto-Clean)
+                </h3>
+                <p className="text-xs text-stone-600 mt-1 leading-relaxed">
+                  หน้านี้จะเคลียร์ประวัติทิ้งทุกวันที่พ้นวันโดยอัตโนมัติ จะไม่มีข้อมูลของวันที่ผ่านมาเหลืออยู่ในระบบ เพื่อความรวดเร็วและเป็นส่วนตัวของทางร้าน
+                </p>
+              </div>
+            </div>
+            <div className="self-stretch md:self-auto flex items-center bg-white px-3 py-1.5 rounded-2xl border border-brand/30 text-[11px] text-brand-dark font-bold shrink-0 shadow-xs justify-center gap-1">
+              <span>สถานะ: ล้างประวัติล่วงลับแล้ววันนี้</span>
+            </div>
           </div>
-          <div>
-            <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2 font-serif">
-              🧹 ระบบล้างประวัติอัจฉริยะ (Auto-Clean)
-            </h3>
-            <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-              หน้านี้จะเคลียร์ประวัติทิ้งทุกวันที่พ้นวันโดยอัตโนมัติ จะไม่มีข้อมูลของวันที่ผ่านมาเหลืออยู่ในระบบ เพื่อความรวดเร็วและเป็นส่วนตัวของทางร้าน
-            </p>
-          </div>
-        </div>
-        <div className="self-stretch md:self-auto flex items-center bg-white px-3 py-1.5 rounded-2xl border border-brand/30 text-[11px] text-brand-dark font-bold shrink-0 shadow-xs justify-center gap-1">
-          <span>สถานะ: ล้างประวัติล่วงลับแล้ววันนี้</span>
-        </div>
-      </div>
 
       {/* Control panel: search + date filter + status filter */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200 shadow-sm flex flex-col gap-4" id="booking-controls">

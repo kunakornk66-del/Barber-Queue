@@ -66,7 +66,7 @@ export default function App() {
   const [promptPayName, setPromptPayName] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
   const [depositAmount, setDepositAmount] = useState<number>(0);
-  const [services, setServices] = useState<ShopService[]>(DEFAULT_SERVICES);
+  const [services, setServices] = useState<ShopService[]>([]);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
   const [isFullscreenDisplay, setIsFullscreenDisplay] = useState<boolean>(false);
@@ -612,7 +612,6 @@ export default function App() {
     if (!activeShopEmail) return;
 
     const localKey = `backup_services_${activeShopEmail}`;
-    const seededKey = `services_seeded_${activeShopEmail}`;
     const savedLocal = localStorage.getItem(localKey);
 
     if (savedLocal) {
@@ -622,32 +621,17 @@ export default function App() {
         console.warn("Error parsing local services backup:", e);
       }
     } else {
-      setServices(DEFAULT_SERVICES);
+      setServices([]);
     }
 
     const servicesRef = collection(db, 'stores', activeShopEmail, 'services');
     const unsubscribe = onSnapshot(servicesRef, (snapshot) => {
       if (snapshot.empty) {
-        if (!localStorage.getItem(seededKey)) {
-          localStorage.setItem(seededKey, 'true');
-          DEFAULT_SERVICES.forEach(async (srv) => {
-            try {
-              await setDoc(doc(db, 'stores', activeShopEmail, 'services', srv.id), srv);
-            } catch (e) {
-              handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/services/${srv.id}`, false);
-            }
-          });
-          setServices(DEFAULT_SERVICES);
-          localStorage.setItem(localKey, JSON.stringify(DEFAULT_SERVICES));
-          return;
-        } else {
-          setServices([]);
-          localStorage.setItem(localKey, JSON.stringify([]));
-          return;
-        }
+        setServices([]);
+        localStorage.setItem(localKey, JSON.stringify([]));
+        return;
       }
 
-      localStorage.setItem(seededKey, 'true');
       const loaded: ShopService[] = snapshot.docs.map(docSnap => ({
         id: docSnap.id,
         ...docSnap.data()
@@ -841,27 +825,14 @@ export default function App() {
         console.warn("Error parsing local hairdressers backup:", e);
       }
     } else {
-      setHairdressers(SEED_HAIRDRESSERS);
+      setHairdressers([]);
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'hairdressers');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
-      // ONLY trigger bootstrapping if the collection is proven to be completely empty on Firestore
       if (snapshot.empty) {
-        console.log("Empty hairdressers collection detected, bootstrapping first-time store defaults...");
-        // Seed default hairdressers
-        SEED_HAIRDRESSERS.forEach(async (barber) => {
-          try {
-            await setDoc(doc(db, 'stores', activeShopEmail, 'hairdressers', barber.id), barber);
-          } catch (e) {
-            handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/hairdressers/${barber.id}`, false);
-          }
-        });
-        // Seed default settings config if empty
-        const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
-        setDoc(settingRef, { shopName: 'BARBER PRO', adminPin: '1234' }, { merge: true }).catch(err => {
-          handleFirestoreError(err, OperationType.CREATE, `stores/${activeShopEmail}/settings/config`, false);
-        });
+        setHairdressers([]);
+        localStorage.setItem(localKey, JSON.stringify([]));
         return;
       }
 
@@ -884,9 +855,7 @@ export default function App() {
     if (!activeShopEmail) return;
 
     const localKey = `backup_recorders_${activeShopEmail}`;
-    const seededKey = `recorders_seeded_${activeShopEmail}`;
     const savedLocal = localStorage.getItem(localKey);
-    const isSeeded = localStorage.getItem(seededKey) === 'true';
 
     if (savedLocal) {
       try {
@@ -894,34 +863,18 @@ export default function App() {
       } catch (e) {
         console.warn("Error parsing local recorders backup:", e);
       }
-    } else if (!isSeeded) {
-      setRecorders(DEFAULT_RECORDERS);
+    } else {
+      setRecorders([]);
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'recorders');
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       if (snapshot.empty) {
-        // Only seed default recorders once on fresh store creation
-        if (!localStorage.getItem(seededKey)) {
-          localStorage.setItem(seededKey, 'true');
-          DEFAULT_RECORDERS.forEach(async (rec) => {
-            try {
-              await setDoc(doc(db, 'stores', activeShopEmail, 'recorders', rec.id), rec);
-            } catch (e) {
-              handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/recorders/${rec.id}`, false);
-            }
-          });
-          setRecorders(DEFAULT_RECORDERS);
-          localStorage.setItem(localKey, JSON.stringify(DEFAULT_RECORDERS));
-          return;
-        } else {
-          setRecorders([]);
-          localStorage.setItem(localKey, JSON.stringify([]));
-          return;
-        }
+        setRecorders([]);
+        localStorage.setItem(localKey, JSON.stringify([]));
+        return;
       }
 
-      localStorage.setItem(seededKey, 'true');
       const list: StaffRecorder[] = [];
       snapshot.forEach((docSnap) => {
         list.push(docSnap.data() as StaffRecorder);
@@ -1686,6 +1639,7 @@ export default function App() {
         promptPayName={promptPayName}
         bankName={bankName}
         depositAmount={depositAmount}
+        slotDuration={slotDuration}
       />
     );
   }

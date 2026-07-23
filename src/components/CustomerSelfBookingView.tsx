@@ -3,8 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { Hairdresser, Booking, LeaveRecord, ShopService } from '../types';
+
+const formatThaiTime = (timeStr: string) => {
+  if (!timeStr) return '';
+  const cleanTime = timeStr.trim().replace(' น.', '').replace('น.', '');
+  return cleanTime.replace(':', '.') + 'น.';
+};
 import { 
   Scissors, 
   Calendar, 
