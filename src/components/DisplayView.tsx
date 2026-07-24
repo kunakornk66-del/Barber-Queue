@@ -38,9 +38,14 @@ export default function DisplayView({
   const prevBookingsRef = useRef<Booking[]>(bookings);
 
   // Theme state for display monitor
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'auto'>('auto');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'oled' | 'auto'>('dark');
   const [autoCycle, setAutoCycle] = useState<boolean>(false);
-  const [cycleTheme, setCycleTheme] = useState<'light' | 'dark'>('dark');
+  const [cycleTheme, setCycleTheme] = useState<'light' | 'dark' | 'oled'>('oled');
+
+  // Energy saving and eye protection states for TV Display screen
+  const [ecoDimLevel, setEcoDimLevel] = useState<number>(0); // 0%, 20%, 40%, 60% dimmer
+  const [warmFilter, setWarmFilter] = useState<boolean>(false); // Amber warm filter for eye care
+  const [showEnergyModal, setShowEnergyModal] = useState<boolean>(false);
 
   // Cute Font style state for Queue Display Screen
   const [fontStyle, setFontStyle] = useState<'cute' | 'rounded' | 'modern'>('cute');
@@ -99,20 +104,23 @@ export default function DisplayView({
     prevBookingsRef.current = bookings;
   }, [bookings]);
 
-  // Theme auto cycle switcher (toggles between light and dark every 30 seconds if auto cycle is active)
+  // Theme auto cycle switcher (toggles between light, dark, and oled every 30 seconds if auto cycle is active)
   useEffect(() => {
     if (themeMode !== 'auto' || !autoCycle) return;
     const interval = setInterval(() => {
-      setCycleTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+      setCycleTheme(prev => (prev === 'light' ? 'dark' : prev === 'dark' ? 'oled' : 'light'));
     }, 30000);
     return () => clearInterval(interval);
   }, [themeMode, autoCycle]);
 
-  // Determine actual dark mode state
+  // Determine actual active theme state
   const isNightTime = currentTime.getHours() >= 18 || currentTime.getHours() < 7;
-  const isDark = themeMode === 'dark' || (
-    themeMode === 'auto' && (autoCycle ? cycleTheme === 'dark' : isNightTime)
-  );
+  const activeTheme = themeMode === 'auto'
+    ? (autoCycle ? cycleTheme : (isNightTime ? 'oled' : 'light'))
+    : themeMode;
+
+  const isDark = activeTheme === 'dark' || activeTheme === 'oled';
+  const isOled = activeTheme === 'oled';
 
   // Fetch real system voices (Thai) dynamically
   useEffect(() => {
@@ -302,31 +310,60 @@ export default function DisplayView({
   return (
     <div 
       id="tablet-display-view-container"
-      className={`min-h-screen transition-colors duration-500 ${fontClass} ${
-        isDark ? 'bg-stone-950 text-stone-100' : 'bg-[#FAF6F0] text-stone-900'
+      className={`relative min-h-screen transition-colors duration-500 ${fontClass} ${
+        isOled 
+          ? 'bg-black text-amber-300' 
+          : isDark 
+            ? 'bg-stone-950 text-stone-100' 
+            : 'bg-[#FAF6F0] text-stone-900'
       } ${
         isFullscreen 
           ? 'p-6 sm:p-8 flex flex-col justify-between' 
-          : `p-4 sm:p-6 rounded-3xl border shadow-sm ${isDark ? 'border-stone-800 bg-stone-950' : 'border-stone-200 bg-[#FAF6F0]'}`
+          : `p-4 sm:p-6 rounded-3xl border shadow-sm ${
+              isOled 
+                ? 'border-stone-900 bg-black' 
+                : isDark 
+                  ? 'border-stone-800 bg-stone-950' 
+                  : 'border-stone-200 bg-[#FAF6F0]'
+            }`
       }`}
     >
+      {/* Screen Dimmer Overlay for energy saving / night comfort */}
+      {ecoDimLevel > 0 && (
+        <div 
+          className="fixed inset-0 pointer-events-none z-50 transition-opacity duration-300"
+          style={{ backgroundColor: `rgba(0, 0, 0, ${ecoDimLevel / 100})` }}
+        />
+      )}
+
+      {/* Warm Light Filter Overlay for Eye Protection */}
+      {warmFilter && (
+        <div 
+          className="fixed inset-0 pointer-events-none z-40 transition-opacity duration-300 bg-amber-600/10 mix-blend-color-burn"
+        />
+      )}
+
       {/* 1. Header Area: Top Bar & Controls Toolbar */}
       <div className="mb-8 space-y-4" id="display-header">
         {/* Top Header Row: Shop Info & Massive Digital Clock */}
         <div className={`flex flex-col lg:flex-row items-center justify-between gap-6 border-b pb-5 transition-colors duration-300 ${
-          isDark ? 'border-stone-800' : 'border-stone-200'
+          isOled ? 'border-stone-900' : isDark ? 'border-stone-800' : 'border-stone-200'
         }`}>
           {/* Shop Brand & Logo - TV Big Screen High Definition Showcase */}
           <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
             <div className="relative group shrink-0">
               {/* Glowing ambient light behind logo */}
               <div className={`absolute -inset-2 rounded-3xl blur-xl opacity-75 transition-all duration-500 ${
-                isDark ? 'bg-gradient-to-r from-amber-500/30 via-emerald-500/20 to-amber-600/30' : 'bg-gradient-to-r from-amber-300/40 via-brand/30 to-amber-400/40'
+                isOled 
+                  ? 'bg-gradient-to-r from-amber-600/40 via-yellow-500/30 to-amber-500/40' 
+                  : isDark 
+                    ? 'bg-gradient-to-r from-amber-500/30 via-emerald-500/20 to-amber-600/30' 
+                    : 'bg-gradient-to-r from-amber-300/40 via-brand/30 to-amber-400/40'
               }`}></div>
 
               {shopLogoUrl ? (
                 <div className={`relative p-1.5 rounded-3xl border-2 shadow-2xl transition-all duration-300 animate-logo-glow ${
-                  isDark ? 'bg-stone-900 border-amber-500/60 shadow-amber-500/20' : 'bg-white border-brand/60 shadow-brand/20'
+                  isOled ? 'bg-black border-amber-400 shadow-amber-500/30' : isDark ? 'bg-stone-900 border-amber-500/60 shadow-amber-500/20' : 'bg-white border-brand/60 shadow-brand/20'
                 }`}>
                   <img 
                     src={shopLogoUrl} 
@@ -337,9 +374,11 @@ export default function DisplayView({
                 </div>
               ) : (
                 <div className={`relative w-20 h-20 sm:w-24 sm:h-24 lg:w-28 lg:h-28 rounded-3xl border-2 flex flex-col items-center justify-center shadow-2xl transition-all duration-300 animate-logo-glow ${
-                  isDark 
-                    ? 'bg-gradient-to-br from-stone-900 via-amber-950/60 to-stone-900 border-amber-500/60 text-amber-400 shadow-amber-500/20' 
-                    : 'bg-gradient-to-br from-amber-50 via-white to-amber-100 border-brand text-brand shadow-brand/20'
+                  isOled
+                    ? 'bg-black border-amber-400 text-amber-300 shadow-amber-500/30'
+                    : isDark 
+                      ? 'bg-gradient-to-br from-stone-900 via-amber-950/60 to-stone-900 border-amber-500/60 text-amber-400 shadow-amber-500/20' 
+                      : 'bg-gradient-to-br from-amber-50 via-white to-amber-100 border-brand text-brand shadow-brand/20'
                 }`}>
                   <span className="text-4xl sm:text-5xl drop-shadow-md">💈</span>
                   <span className="text-[10px] font-black uppercase tracking-wider mt-1 font-mono">BARBER</span>
@@ -350,27 +389,39 @@ export default function DisplayView({
             <div>
               <div className="flex flex-wrap items-center gap-2.5 justify-center sm:justify-start">
                 <h1 className={`text-3xl sm:text-4xl lg:text-5xl font-serif font-black tracking-tight leading-none ${
-                  isDark ? 'text-stone-100 drop-shadow-md' : 'text-stone-900'
+                  isOled ? 'text-amber-300 drop-shadow-[0_0_15px_rgba(251,191,36,0.3)]' : isDark ? 'text-stone-100 drop-shadow-md' : 'text-stone-900'
                 }`}>
                   {shopName}
                 </h1>
                 <span className={`text-xs px-3.5 py-1 rounded-full font-sans font-extrabold tracking-wider shadow-md animate-pulse ${
-                  isDark ? 'bg-amber-500 text-stone-950' : 'bg-brand text-white'
+                  isOled ? 'bg-amber-400 text-black font-black' : isDark ? 'bg-amber-500 text-stone-950' : 'bg-brand text-white'
                 }`}>
-                  DISPLAY BOARD
+                  TV DISPLAY BOARD
                 </span>
+
+                {/* Eco Saver Badge when dark or oled or dimmed */}
+                {(isDark || ecoDimLevel > 0 || warmFilter) && (
+                  <button 
+                    onClick={() => setShowEnergyModal(true)}
+                    className="text-[11px] px-3 py-0.5 rounded-full font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center gap-1 hover:bg-emerald-500/30 cursor-pointer transition-all"
+                    title="ดูข้อมูลโหมดถนอมสายตาและประหยัดพลังงาน"
+                  >
+                    <Sparkles className="w-3 h-3 text-emerald-400 animate-spin" />
+                    <span>⚡ ECO TV MODE ({isOled ? 'ประหยัดไฟ 80%' : 'ถนอมสายตา'})</span>
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mt-2.5">
                 <p className={`text-xs sm:text-sm font-bold flex items-center gap-1.5 ${
-                  isDark ? 'text-amber-300' : 'text-stone-600'
+                  isOled ? 'text-amber-400' : isDark ? 'text-amber-300' : 'text-stone-600'
                 }`}>
-                  <Calendar className={`w-4 h-4 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
+                  <Calendar className={`w-4 h-4 shrink-0 ${isOled ? 'text-amber-400' : isDark ? 'text-amber-400' : 'text-brand'}`} />
                   <span>{getThaiDateLongString()}</span>
                 </p>
 
                 <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
-                  isDark ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  isOled ? 'bg-black border-emerald-500/80 text-emerald-300' : isDark ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300' : 'bg-emerald-50 border-emerald-300 text-emerald-800'
                 }`}>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
                   <span>ร้านเปิดบริการ ({shopOpenTime} - {shopCloseTime} น.)</span>
@@ -381,9 +432,11 @@ export default function DisplayView({
 
           {/* Digital Clock Widget */}
           <div className={`px-6 py-3.5 rounded-2xl border shadow-md flex items-center justify-center gap-4 shrink-0 transition-colors duration-300 w-full lg:w-auto ${
-            isDark 
-              ? 'bg-stone-900 text-amber-400 border-amber-500/40 shadow-amber-500/10' 
-              : 'bg-stone-earth text-[#DBCBB5] border-stone-850'
+            isOled
+              ? 'bg-black text-amber-300 border-amber-400 shadow-amber-500/20'
+              : isDark 
+                ? 'bg-stone-900 text-amber-400 border-amber-500/40 shadow-amber-500/10' 
+                : 'bg-stone-earth text-[#DBCBB5] border-stone-850'
           }`}>
             <Clock className={`w-7 h-7 animate-pulse shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
             <div className="flex flex-col items-start">
@@ -395,20 +448,51 @@ export default function DisplayView({
           </div>
         </div>
 
-        {/* Display Control Toolbar Bar */}
-        <div className={`p-3 rounded-2xl border shadow-xs transition-colors duration-300 flex flex-wrap items-center justify-between gap-3 ${
-          isDark ? 'bg-stone-900/80 border-stone-800' : 'bg-stone-100/90 border-stone-200/80'
+        {/* Display Control Toolbar Bar - Enhanced Dark Mode & Eye Care Controls */}
+        <div className={`p-3.5 rounded-2xl border shadow-xs transition-colors duration-300 flex flex-wrap items-center justify-between gap-3 ${
+          isOled ? 'bg-black border-stone-900' : isDark ? 'bg-stone-900/90 border-stone-800' : 'bg-stone-100/90 border-stone-200/80'
         }`}>
-          {/* Left Group: Theme Switcher & Auto Cycle */}
+          {/* Left Group: TV Display Dark Mode Switcher & Eco Modes */}
           <div className="flex flex-wrap items-center gap-3">
-            {/* Theme Selector */}
+            {/* Theme Selector with Dark Mode & OLED Power Saver */}
             <div className="flex items-center gap-2">
               <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-amber-400' : 'text-stone-600'}`}>
-                🎨 โหมดสี:
+                📺 โหมด TV หน้าร้าน:
               </span>
               <div className={`flex items-center p-1 rounded-xl border ${
-                isDark ? 'bg-stone-950 border-stone-800' : 'bg-white border-stone-200'
+                isOled ? 'bg-black border-stone-800' : isDark ? 'bg-stone-950 border-stone-800' : 'bg-white border-stone-200'
               }`}>
+                {/* Dark Mode - Midnight Stone (Recommended for Shop Display) */}
+                <button
+                  type="button"
+                  onClick={() => setThemeMode('dark')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-extrabold transition-all cursor-pointer flex items-center gap-1.5 ${
+                    themeMode === 'dark'
+                      ? 'bg-stone-800 text-amber-300 border border-amber-500/60 shadow-xs ring-2 ring-amber-500/30'
+                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  title="โหมดมืดสีเข้ม (Dark Midnight) - ถนอมสายตา นุ่มนวล"
+                >
+                  <Moon className="w-3.5 h-3.5 text-amber-400" />
+                  <span>🌙 โหมดมืด</span>
+                </button>
+
+                {/* OLED Pure Black - Energy Saver */}
+                <button
+                  type="button"
+                  onClick={() => setThemeMode('oled')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 ${
+                    themeMode === 'oled'
+                      ? 'bg-amber-400 text-black font-black border border-amber-300 shadow-md ring-2 ring-amber-400/50'
+                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                  title="โหมดดำสนิท OLED - ลดการใช้พลังงานจอภาพสูงสุดถึง 80%"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-black" />
+                  <span>⚡ OLED ดำสนิท (ประหยัดไฟ)</span>
+                </button>
+
+                {/* Light Mode */}
                 <button
                   type="button"
                   onClick={() => setThemeMode('light')}
@@ -420,21 +504,10 @@ export default function DisplayView({
                   title="โหมดสว่าง High-Contrast"
                 >
                   <Sun className="w-3.5 h-3.5 text-amber-600" />
-                  <span>สว่าง</span>
+                  <span>☀️ สว่าง</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setThemeMode('dark')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    themeMode === 'dark'
-                      ? 'bg-stone-800 text-amber-300 border border-amber-500/40 shadow-xs'
-                      : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
-                  }`}
-                  title="โหมดสีเข้มสำหรับจอมอนิเตอร์"
-                >
-                  <Moon className="w-3.5 h-3.5 text-amber-400" />
-                  <span>สีเข้ม</span>
-                </button>
+
+                {/* Auto Switch */}
                 <button
                   type="button"
                   onClick={() => setThemeMode('auto')}
@@ -443,7 +516,7 @@ export default function DisplayView({
                       ? 'bg-emerald-600 text-white font-extrabold shadow-xs'
                       : isDark ? 'text-stone-400 hover:text-stone-200' : 'text-stone-600 hover:text-stone-900'
                   }`}
-                  title="สลับสีเข้ม-สว่างอัตโนมัติตามช่วงเวลา"
+                  title="สลับโหมดมืดอัตโนมัติตามช่วงเวลาเปิดร้าน"
                 >
                   <RotateCw className="w-3.5 h-3.5" />
                   <span>อัตโนมัติ</span>
@@ -464,9 +537,44 @@ export default function DisplayView({
                 title="เปิด/ปิด การสลับสีเข้ม-สว่างหมุนเวียนอัตโนมัติทุก 30 วินาที"
               >
                 <RotateCw className={`w-3.5 h-3.5 ${autoCycle ? 'animate-spin' : ''}`} />
-                <span>{autoCycle ? 'กำลังวนลูป 30s' : 'เปิดวนลูป 30s'}</span>
+                <span>{autoCycle ? 'วนลูป 30s Active' : 'เปิดวนลูป 30s'}</span>
               </button>
             )}
+
+            {/* Screen Dimmer Control */}
+            <div className="flex items-center gap-1.5 border-l pl-3 border-stone-800">
+              <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-amber-300' : 'text-stone-600'}`}>
+                💡 หรี่แสงจอ:
+              </span>
+              <select
+                value={ecoDimLevel}
+                onChange={(e) => setEcoDimLevel(Number(e.target.value))}
+                className={`border rounded-xl px-2.5 py-1 text-xs font-extrabold outline-none cursor-pointer ${
+                  isOled ? 'bg-black border-amber-400 text-amber-300' : isDark ? 'bg-stone-800 border-stone-700 text-stone-100' : 'bg-white border-stone-200 text-stone-850'
+                }`}
+                title="ระดับการหรี่แสงหน้าจอ TV เพื่อถนอมสายตาเวลากลางคืน"
+              >
+                <option value={0}>0% (ปกติ)</option>
+                <option value={20}>20% (นุ่มนวล)</option>
+                <option value={40}>40% (ถนอมสายตา)</option>
+                <option value={60}>60% (ประหยัดพลังงานขั้นสุด)</option>
+              </select>
+            </div>
+
+            {/* Warm Light / Eye Care Filter Toggle */}
+            <button
+              type="button"
+              onClick={() => setWarmFilter(!warmFilter)}
+              className={`px-3 py-1 rounded-xl text-xs font-extrabold border transition-all cursor-pointer flex items-center gap-1 ${
+                warmFilter 
+                  ? 'bg-amber-500/30 text-amber-300 border-amber-400 ring-1 ring-amber-400/50' 
+                  : isDark ? 'bg-stone-800/80 border-stone-700 text-stone-400 hover:text-stone-200' : 'bg-white border-stone-200 text-stone-600'
+              }`}
+              title="เปิด/ปิด แผ่นกรองแสงสีฟ้าโทนอุ่น (Eye Care Warm Light)"
+            >
+              <Sun className="w-3.5 h-3.5 text-amber-400" />
+              <span>{warmFilter ? '👁️ ถนอมสายตา [เปิด]' : '👁️ ถนอมสายตา'}</span>
+            </button>
           </div>
 
           {/* Right Group: Audio & Fullscreen Controls */}
@@ -523,7 +631,7 @@ export default function DisplayView({
             {/* Thai Font Style Select */}
             <div className="flex items-center gap-1.5">
               <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-amber-300' : 'text-stone-600'}`}>
-                ✨ แบบฟอนต์ (Font Style):
+                ✨ แบบฟอนต์:
               </span>
               <select
                 id="display-font-select"
@@ -535,9 +643,9 @@ export default function DisplayView({
                     : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
                 }`}
               >
-                <option value="cute">✨ Prompt (ตัวใหญ่ คมชัด อ่านง่ายมาก)</option>
-                <option value="rounded">🌸 Mitr (ตัวกลมละมุน สบายตา)</option>
-                <option value="modern">⚡ Kanit (หัวมนโมเดิร์น อ่านง่ายเด่นชัด)</option>
+                <option value="cute">✨ Prompt (ตัวใหญ่ คมชัด)</option>
+                <option value="rounded">🌸 Mitr (ตัวกลมละมุน)</option>
+                <option value="modern">⚡ Kanit (หัวมนเด่นชัด)</option>
               </select>
             </div>
 
@@ -557,6 +665,70 @@ export default function DisplayView({
           </div>
         </div>
       </div>
+
+      {/* Energy Saving & Eye Protection Info Modal */}
+      {showEnergyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+          <div className="bg-stone-900 border-2 border-amber-500/60 rounded-3xl p-6 sm:p-8 max-w-lg w-full text-stone-100 shadow-2xl space-y-6 relative">
+            <div className="flex items-center justify-between border-b border-stone-800 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-amber-300 text-xl">
+                  ⚡
+                </div>
+                <div>
+                  <h3 className="text-xl font-serif font-black text-amber-300">TV Display Dark Mode & Energy Saver</h3>
+                  <p className="text-xs text-stone-400 font-sans">โหมดมืดประหยัดพลังงานและถนอมสายตาหน้าร้าน</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowEnergyModal(false)}
+                className="w-8 h-8 rounded-full bg-stone-800 text-stone-400 hover:text-white flex items-center justify-center cursor-pointer text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4 text-sm text-stone-300 leading-relaxed font-sans">
+              <div className="p-4 bg-stone-950 rounded-2xl border border-stone-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                  <span>🌙 โหมดมืด Midnight Stone:</span>
+                  <span className="text-emerald-400">ถนอมสายตา 100%</span>
+                </div>
+                <p className="text-xs text-stone-400">
+                  ปรับเฉดสีเข้มโทนสโตน นุ่มนวล ตัดแสงสะท้อนของจอ TV ไม่แยงสายตาพนักงานและลูกค้าที่มองหน้าร้านนานๆ
+                </p>
+              </div>
+
+              <div className="p-4 bg-stone-950 rounded-2xl border border-amber-500/40 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+                  <span>⚡ โหมด OLED ดำสนิท (Pure Black):</span>
+                  <span className="text-emerald-400">ประหยัดไฟจอภาพสูงสุด 80%</span>
+                </div>
+                <p className="text-xs text-stone-400">
+                  ดับพิกเซลสีดำบนจอ OLED / Smart TV ช่วยลดความร้อน สะสมในตัวเครื่อง ยืดอายุการใช้งานจอภาพ และลดค่าไฟฟ้าหน้าร้าน
+                </p>
+              </div>
+
+              <div className="p-4 bg-stone-950 rounded-2xl border border-stone-800 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-amber-400">
+                  <span>💡 Screen Dimmer & Eye Filter:</span>
+                  <span className="text-emerald-400">ลดแสงสีฟ้า</span>
+                </div>
+                <p className="text-xs text-stone-400">
+                  สามารถเลือกหรี่แสงจอ 20% - 60% หรือเปิดตัวกรองแสงสีฟ้าโทนอุ่น เพื่อความสบายตาเมื่อเปิดทิ้งไว้ตลอด 12 ชั่วโมง
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowEnergyModal(false)}
+              className="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-stone-950 font-black rounded-2xl shadow-lg transition-all cursor-pointer text-center"
+            >
+              เข้าใจแล้ว ปิดหน้าต่างนี้
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Main Content Board - Large Typography Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start" id="display-workspace-grid">
