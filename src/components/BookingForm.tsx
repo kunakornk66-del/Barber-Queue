@@ -8,6 +8,7 @@ import { Hairdresser, Booking, LeaveRecord, StaffRecorder } from '../types';
 import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X, Filter, Plus, RefreshCw, Users, HelpCircle } from 'lucide-react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
+import { triggerMascotPopup } from './MascotAssistant';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
 export const formatThaiTime = (timeStr: string) => {
@@ -687,6 +688,7 @@ export default function BookingForm({
     
     // Trigger success feedback
     setShowSuccess(true);
+    triggerMascotPopup(`ลงคิวให้คุณ ${customerName || 'ลูกค้า'} เรียบร้อยแล้วงับ! เดี๋ยวเจอกันน้า ✂️🎉`, 'ลงคิวสำเร็จ!', 'cheering');
     // Smooth auto hide after 3 seconds
     const timer = setTimeout(() => {
       setShowSuccess(false);

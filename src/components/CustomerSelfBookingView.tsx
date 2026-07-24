@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, ChangeEvent, FormEvent } from 'react';
 import { Hairdresser, Booking, LeaveRecord, ShopService } from '../types';
+import { triggerMascotPopup } from './MascotAssistant';
 
 const formatThaiTime = (timeStr: string) => {
   if (!timeStr) return '';
@@ -420,6 +421,7 @@ export default function CustomerSelfBookingView({
       };
 
       setBookingSuccess(createdBooking);
+      triggerMascotPopup(`เย้! จองคิวคุณ ${trimmedName} เรียบร้อยแล้วงับ! ขอบคุณที่เลือกบริการร้านเราน้า ✂️💖`, 'จองคิวสำเร็จ!', 'cheering');
       setIsSubmitting(false);
     } catch (err) {
       console.error('Customer self booking error:', err);

@@ -11,10 +11,13 @@ import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
 import CustomerSelfBookingView from './components/CustomerSelfBookingView';
+import MascotAssistant, { triggerMascotPopup } from './components/MascotAssistant';
 import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, BellOff, BellRing, Volume2, Globe } from 'lucide-react';
+import { DEFAULT_THEME_ID, applyThemePalette } from './theme';
 
 // Import Firebase dependencies
-import { db, handleFirestoreError, OperationType } from './firebase';
+import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
+import { signInWithPopup, signOut } from 'firebase/auth';
 import { 
   collection, 
   onSnapshot, 
@@ -66,6 +69,7 @@ export default function App() {
   const [promptPayName, setPromptPayName] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
   const [depositAmount, setDepositAmount] = useState<number>(0);
+  const [themePalette, setThemePalette] = useState<string>(DEFAULT_THEME_ID);
   const [services, setServices] = useState<ShopService[]>([]);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [copiedDisplayLink, setCopiedDisplayLink] = useState<boolean>(false);
@@ -87,6 +91,11 @@ export default function App() {
     }, 10000);
     return () => clearInterval(timer);
   }, []);
+
+  // Apply CSS color variables whenever themePalette changes
+  useEffect(() => {
+    applyThemePalette(themePalette);
+  }, [themePalette]);
 
   // Dynamic set activeShopEmail with multiple robust URL parser fallbacks (query, hash, and pathnames)
   const [activeShopEmail, setActiveShopEmail] = useState<string | null>(() => {
@@ -510,6 +519,10 @@ export default function App() {
         if (data.shopHolidays !== undefined) setShopHolidays(data.shopHolidays || []);
         if (data.shopOpenTime) setShopOpenTime(data.shopOpenTime);
         if (data.shopCloseTime) setShopCloseTime(data.shopCloseTime);
+        if (data.themePalette) {
+          setThemePalette(data.themePalette);
+          applyThemePalette(data.themePalette);
+        }
       } catch (e) {
         console.warn("Error parsing local settings backup:", e);
       }
@@ -521,6 +534,8 @@ export default function App() {
       setShopHolidays([]);
       setShopOpenTime('10:00');
       setShopCloseTime('21:00');
+      setThemePalette(DEFAULT_THEME_ID);
+      applyThemePalette(DEFAULT_THEME_ID);
     }
 
     const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
@@ -581,6 +596,13 @@ export default function App() {
           if (data.depositAmount !== undefined) {
             setDepositAmount(Number(data.depositAmount));
           }
+          if (data.themePalette) {
+            setThemePalette(data.themePalette);
+            applyThemePalette(data.themePalette);
+          } else {
+            setThemePalette(DEFAULT_THEME_ID);
+            applyThemePalette(DEFAULT_THEME_ID);
+          }
           localStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
@@ -599,6 +621,8 @@ export default function App() {
           setPromptPayName('');
           setBankName('');
           setDepositAmount(0);
+          setThemePalette(DEFAULT_THEME_ID);
+          applyThemePalette(DEFAULT_THEME_ID);
         }
       }
     }, (error) => {
@@ -1136,6 +1160,32 @@ export default function App() {
     }
   };
 
+  const handleUpdateThemePalette = async (paletteId: string) => {
+    if (!activeShopEmail) return;
+    if (!isManager) {
+      alert("⚠️ สิทธิ์ปฏิเสธ: คุณไม่มีสิทธิ์เข้าตั้งค่าธีมสีของสาขานี้");
+      return;
+    }
+
+    setThemePalette(paletteId);
+    applyThemePalette(paletteId);
+
+    const localKey = `backup_settings_${activeShopEmail}`;
+    try {
+      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      data.themePalette = paletteId;
+      localStorage.setItem(localKey, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Local storage write skipped:", e);
+    }
+
+    try {
+      await setDoc(doc(db, 'stores', activeShopEmail, 'settings', 'config'), { themePalette: paletteId }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/settings/config`, false);
+    }
+  };
+
   const handleEnterShop = (shopInput: string) => {
     const trimmed = shopInput.trim().toLowerCase();
     if (!trimmed) {
@@ -1159,6 +1209,9 @@ export default function App() {
     setActiveShopEmail(trimmed);
     localStorage.setItem('activeShopEmail', trimmed);
     updateUrlShop(trimmed);
+
+    // Mascot welcome popup
+    triggerMascotPopup(`ยินดีต้อนรับเข้าสู่ระบบร้าน ${trimmed} งับ! ขอให้วันนี้ราบรื่นและลูกค้าแน่นร้านตลอดวันน้า 🐱💈✨`, 'ล็อกอินสำเร็จ! 🎉', 'cheering', 6000);
   };
 
   // Action Handlers
@@ -1512,6 +1565,43 @@ export default function App() {
     }
   };
 
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.warn("SignOut error:", err);
+    }
+    localStorage.removeItem('activeShopEmail');
+    setActiveShopEmail(null);
+    setShopSearchEmail('');
+    const url = new URL(window.location.href);
+    url.searchParams.delete('shop');
+    url.searchParams.delete('branch');
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setPortalError(null);
+      // Force Google account chooser popup so user can pick a different account every time
+      googleProvider.setCustomParameters({
+        prompt: 'select_account'
+      });
+      const result = await signInWithPopup(auth, googleProvider);
+      if (result.user && result.user.email) {
+        handleEnterShop(result.user.email);
+      }
+    } catch (error: any) {
+      if (error?.code === 'auth/popup-closed-by-user' || error?.code === 'auth/cancelled-popup-request') {
+        // User closed the Google sign-in popup window intentionally
+        console.log("Google Sign-In popup closed by user");
+        return;
+      }
+      console.error("Google Sign-In Error:", error);
+      setPortalError("ไม่สามารถเข้าสู่ระบบด้วย Google ได้ กรุณาลองใหม่อีกครั้ง");
+    }
+  };
+
   if (!activeShopEmail) {
     return (
       <div className="min-h-screen bg-[#0B1325] font-sans text-stone-800 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 relative overflow-hidden" id="portal-container">
@@ -1527,7 +1617,7 @@ export default function App() {
             </div>
             <h2 className="text-3xl font-serif font-bold tracking-tight text-stone-900">Barber Queue Live</h2>
             <p className="mt-2.5 text-xs text-stone-500 max-w-sm mx-auto leading-relaxed">
-              ระบบศูนย์บัญชาการคิวตัดผมอัจฉริยะ สาขาแยกโดยสมบูรณ์ผ่านระเบียนคลาวด์ พร้อมล้างข้อมูลประวัติวันก่อนหน้าอัตโนมัติ
+              ระบบศูนย์บัญชาการคิวตัดผมอัจฉริยะ สาขาแยกโดยสมบูรณ์ผ่านระเบียนคลาวด์
             </p>
           </div>
 
@@ -1535,13 +1625,29 @@ export default function App() {
             
             {/* Direct Shop Login Box */}
             <div className="space-y-4 bg-stone-50/80 p-6 rounded-2xl border border-stone-200/60 shadow-inner">
-              <h3 className="text-xs font-bold text-stone-700 uppercase tracking-wider flex items-center gap-1.5 justify-center">
-                <Users className="w-4 h-4 text-brand" /> 🔑 เข้าสู่ระบบด้วย Gmail ของแต่ละร้าน
-              </h3>
-              <p className="text-[11px] text-stone-600 leading-relaxed text-center">
-                ระบุอีเมล Gmail ของร้านคุณเพื่อเข้าจัดการระบบ (หากเป็นร้านใหม่ ระบบจะเริ่มสร้างข้อมูลใหม่ให้ทันที, รหัส PIN เข้าหน้าตั้งค่าเริ่มต้นคือ <b>1234</b>)
-              </p>
               
+              {/* Google Sign-In Button */}
+              <button
+                type="button"
+                id="google-signin-btn"
+                onClick={handleGoogleLogin}
+                className="w-full bg-white hover:bg-stone-50 text-stone-700 font-bold py-3 px-4 rounded-xl border border-stone-300 shadow-2xs hover:shadow-xs transition-all flex items-center justify-center gap-3 cursor-pointer active:scale-98"
+              >
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span className="text-xs">เข้าสู่ระบบด้วย Google</span>
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-stone-200"></div>
+                <span className="flex-shrink mx-3 text-[11px] text-stone-400 font-medium">หรือระบุอีเมลด้วยตนเอง</span>
+                <div className="flex-grow border-t border-stone-200"></div>
+              </div>
+
               <div className="flex gap-2">
                 <input
                   type="email"
@@ -1554,18 +1660,18 @@ export default function App() {
                       handleEnterShop(shopSearchEmail);
                     }
                   }}
-                  className="flex-1 text-xs px-3.5 py-3 rounded-xl border border-stone-205 outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white placeholder:text-stone-350"
+                  className="flex-1 text-xs px-3.5 py-3 rounded-xl border border-stone-300 outline-none focus:border-brand focus:ring-2 focus:ring-brand/10 bg-white placeholder:text-stone-400"
                 />
                 <button
                   type="button"
                   id="enter-shop-btn"
                   onClick={() => handleEnterShop(shopSearchEmail)}
-                  className="bg-brand hover:bg-brand-dark text-white px-5 py-3 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer active:scale-95"
+                  className="bg-brand hover:bg-brand-dark text-white px-5 py-3 rounded-xl text-xs font-bold transition-all shadow-xs shrink-0 cursor-pointer active:scale-95"
                 >
-                  เริ่มใช้งาน
+                  เข้าใช้งาน
                 </button>
               </div>
-              {portalError && <p className="text-[10px] text-red-500 font-medium text-center">{portalError}</p>}
+              {portalError && <p className="text-[11px] text-rose-500 font-medium text-center">{portalError}</p>}
             </div>
 
             {/* Quick Tutorial Footer */}
@@ -1815,14 +1921,7 @@ export default function App() {
               <button
                 type="button"
                 id="branch-logout-btn"
-                onClick={() => {
-                  localStorage.removeItem('activeShopEmail');
-                  setActiveShopEmail(null);
-                  const url = new URL(window.location.href);
-                  url.searchParams.delete('shop');
-                  url.searchParams.delete('branch');
-                  window.history.replaceState({}, '', url.toString());
-                }}
+                onClick={handleLogout}
                 className="bg-[#3D1E1E] hover:bg-[#522929] border border-red-900/40 text-red-200 px-3 py-2 sm:py-2.5 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 shadow-sm shrink-0"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -2071,6 +2170,8 @@ export default function App() {
               onDeleteService={handleDeleteService}
               onUpdateService={handleUpdateService}
               activeShopEmail={activeShopEmail}
+              themePalette={themePalette}
+              onUpdateThemePalette={handleUpdateThemePalette}
             />
 
           ) : (
@@ -2335,6 +2436,9 @@ export default function App() {
         <p className="font-semibold text-stone-500">💈 {shopName || 'BARBER PRO'} (Natural Earth Cloud Theme)</p>
         <p className="font-light">อำนวยประโยชน์ให้ผู้เข้าอบรมและผู้คุมลงคิวร้านได้อย่างมีระบบด้วย Firebase Cloud</p>
       </footer>
+
+      {/* Floating Mascot Assistant Widget & Popups */}
+      <MascotAssistant activeShopEmail={activeShopEmail} />
 
     </div>
   );

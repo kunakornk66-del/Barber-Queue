@@ -42,6 +42,9 @@ export default function DisplayView({
   const [autoCycle, setAutoCycle] = useState<boolean>(false);
   const [cycleTheme, setCycleTheme] = useState<'light' | 'dark'>('dark');
 
+  // Cute Font style state for Queue Display Screen
+  const [fontStyle, setFontStyle] = useState<'cute' | 'rounded' | 'modern'>('cute');
+
   // Update clock every second
   useEffect(() => {
     const timer = setInterval(() => {
@@ -290,10 +293,16 @@ export default function DisplayView({
     return `${dayName}ที่ ${dateNum} ${monthName} พ.ศ. ${yearThai}`;
   };
 
+    const fontClass = fontStyle === 'cute' 
+      ? 'font-cute' 
+      : fontStyle === 'rounded' 
+        ? 'font-rounded-cute' 
+        : 'font-modern-cute';
+
   return (
     <div 
       id="tablet-display-view-container"
-      className={`min-h-screen transition-colors duration-500 font-sans ${
+      className={`min-h-screen transition-colors duration-500 ${fontClass} ${
         isDark ? 'bg-stone-950 text-stone-100' : 'bg-[#FAF6F0] text-stone-900'
       } ${
         isFullscreen 
@@ -508,6 +517,27 @@ export default function DisplayView({
                 <option value="ครับ">ครับ</option>
                 <option value="ครับผม">ครับผม</option>
                 <option value="">ไม่มี</option>
+              </select>
+            </div>
+
+            {/* Thai Font Style Select */}
+            <div className="flex items-center gap-1.5">
+              <span className={`text-xs font-bold shrink-0 ${isDark ? 'text-amber-300' : 'text-stone-600'}`}>
+                ✨ แบบฟอนต์ (Font Style):
+              </span>
+              <select
+                id="display-font-select"
+                value={fontStyle}
+                onChange={(e) => setFontStyle(e.target.value as 'cute' | 'rounded' | 'modern')}
+                className={`border rounded-xl px-3 py-1.5 text-xs font-bold outline-none cursor-pointer ${
+                  isDark 
+                    ? 'bg-stone-800 border-amber-500/50 text-amber-300 focus:border-amber-400' 
+                    : 'bg-white border-stone-200 text-stone-850 focus:border-brand'
+                }`}
+              >
+                <option value="cute">✨ Prompt (ตัวใหญ่ คมชัด อ่านง่ายมาก)</option>
+                <option value="rounded">🌸 Mitr (ตัวกลมละมุน สบายตา)</option>
+                <option value="modern">⚡ Kanit (หัวมนโมเดิร์น อ่านง่ายเด่นชัด)</option>
               </select>
             </div>
 

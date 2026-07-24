@@ -5,7 +5,9 @@
 
 import { useState, useEffect, FormEvent, ChangeEvent } from 'react';
 import { Hairdresser, StaffRecorder, ShopService } from '../types';
-import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link as LinkIcon, Sparkles, RefreshCw, Clock, UserCheck, ShieldCheck, AlertTriangle, Globe, Copy, ExternalLink, Check, Pencil, Save, X, Edit2, CreditCard, Smartphone } from 'lucide-react';
+import { Scissors, Plus, Trash2, BadgeInfo, CheckCircle, Store, ShieldAlert, Upload, Image as ImageIcon, Link as LinkIcon, Sparkles, RefreshCw, Clock, UserCheck, AlertTriangle, Globe, Copy, ExternalLink, Check, Pencil, Save, X, Edit2, CreditCard, Smartphone, Palette, Eye, Sliders } from 'lucide-react';
+import { THEME_PALETTES, getPaletteById } from '../theme';
+import { triggerMascotPopup } from './MascotAssistant';
 
 
 const PRESET_LOGOS = [
@@ -76,6 +78,8 @@ interface SettingsProps {
   onDeleteService: (id: string) => void;
   onUpdateService?: (service: ShopService) => void;
   activeShopEmail: string | null;
+  themePalette?: string;
+  onUpdateThemePalette?: (paletteId: string) => void;
 }
 
 export default function Settings({
@@ -112,8 +116,13 @@ export default function Settings({
   onAddService,
   onDeleteService,
   onUpdateService,
-  activeShopEmail
+  activeShopEmail,
+  themePalette,
+  onUpdateThemePalette
 }: SettingsProps) {
+
+  // Active Category Tab state
+  const [activeSettingTab, setActiveSettingTab] = useState<'info' | 'hours' | 'payment' | 'staff' | 'all'>('info');
 
   const [newHairdresserName, setNewHairdresserName] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -392,6 +401,7 @@ export default function Settings({
     if (trimmed) {
       onUpdateShopName(trimmed);
       setShopNameSuccess(true);
+      triggerMascotPopup(`เปลี่ยนชื่อร้านเป็น "${trimmed}" เรียบร้อยแล้วงับ! 💈✨`, 'อัปเดตชื่อร้าน!', 'cheering');
       const timer = setTimeout(() => {
         setShopNameSuccess(false);
       }, 3000);
@@ -427,6 +437,7 @@ export default function Settings({
     onAddHairdresser(nameTrimed);
     setNewHairdresserName('');
     setSuccessMessage(`เพิ่ม "ช่าง${nameTrimed}" เรียบร้อยแล้ว`);
+    triggerMascotPopup(`ต้อนรับช่างใหม่! เพิ่ม "ช่าง${nameTrimed}" เรียบร้อยแล้วงับ ✂️🐱`, 'เพิ่มช่างสำเร็จ!', 'cheering');
 
     // Hide success message after 3 seconds
     const timer = setTimeout(() => {
@@ -508,1246 +519,1497 @@ export default function Settings({
     return `${baseUrl}?${shopParam ? shopParam + '&' : ''}mode=booking`;
   };
 
+  const isShow = (tab: 'info' | 'hours' | 'payment' | 'staff') => {
+    return activeSettingTab === 'all' || activeSettingTab === tab;
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
 
-      {/* Customer Self-Booking Portal Toggle & Link Settings Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="customer-self-booking-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <Globe className="w-5 h-5 text-brand" /> ระบบลิงก์ให้ลูกค้าจองคิวเองออนไลน์
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              สามารถเปิดหรือปิดฟีเจอร์นี้ได้ตามความต้องการ หากเปิดใช้ จะสามารถส่งลิงก์ให้ลูกค้ากดเลือกบริการ ช่าง และรอบเวลาว่างได้เอง
-            </p>
-          </div>
+      {/* Category Navigation Bar */}
+      <div className="bg-white rounded-3xl p-3 border border-stone-200 shadow-sm space-y-2.5" id="settings-tabs-nav">
+        <div className="flex items-center justify-between px-2 pt-0.5">
+          <span className="text-xs font-black text-stone-800 flex items-center gap-1.5">
+            <Sliders className="w-4 h-4 text-brand" /> เลือกหมวดหมู่การตั้งค่า:
+          </span>
+          <button
+            type="button"
+            onClick={() => setActiveSettingTab(activeSettingTab === 'all' ? 'info' : 'all')}
+            className="text-[11px] text-stone-500 hover:text-stone-900 font-bold cursor-pointer underline transition-all"
+          >
+            {activeSettingTab === 'all' ? '📄 แสดงแบบแยกหมวดหมู่' : '📋 แสดงทุกหมวดหมู่ในหน้าเดียว'}
+          </button>
         </div>
 
-        <div className="p-6 md:p-8 space-y-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <button
+            type="button"
+            id="setting-tab-info"
+            onClick={() => setActiveSettingTab('info')}
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              activeSettingTab === 'info'
+                ? 'bg-brand text-white shadow-md ring-2 ring-brand/20'
+                : 'bg-stone-50 text-stone-700 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <Store className="w-4 h-4 shrink-0" />
+            <span className="truncate">1. ร้าน & ธีม</span>
+          </button>
+
+          <button
+            type="button"
+            id="setting-tab-hours"
+            onClick={() => setActiveSettingTab('hours')}
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              activeSettingTab === 'hours'
+                ? 'bg-brand text-white shadow-md ring-2 ring-brand/20'
+                : 'bg-stone-50 text-stone-700 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <Clock className="w-4 h-4 shrink-0" />
+            <span className="truncate">2. เวลา & คิว</span>
+          </button>
+
+          <button
+            type="button"
+            id="setting-tab-payment"
+            onClick={() => setActiveSettingTab('payment')}
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              activeSettingTab === 'payment'
+                ? 'bg-brand text-white shadow-md ring-2 ring-brand/20'
+                : 'bg-stone-50 text-stone-700 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <CreditCard className="w-4 h-4 shrink-0" />
+            <span className="truncate">3. การชำระเงิน</span>
+          </button>
+
+          <button
+            type="button"
+            id="setting-tab-staff"
+            onClick={() => setActiveSettingTab('staff')}
+            className={`py-2.5 px-2.5 rounded-2xl text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer active:scale-95 ${
+              activeSettingTab === 'staff'
+                ? 'bg-brand text-white shadow-md ring-2 ring-brand/20'
+                : 'bg-stone-50 text-stone-700 hover:bg-stone-100 border border-stone-200'
+            }`}
+          >
+            <UserCheck className="w-4 h-4 shrink-0" />
+            <span className="truncate">4. ช่าง & พนักงาน</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* SECTION 1: ข้อมูลร้าน & ธีม (Shop Name, Logo, Theme, PIN) */}
+      {/* ========================================================= */}
+      {isShow('info') && (
+        <div className="space-y-6 animate-fade-in">
           
-          {/* Main Toggle Switch */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-stone-50 border border-stone-200">
-            <div>
-              <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
-                <span>🌐 สถานะระบบจองคิวออนไลน์สำหรับลูกค้า:</span>
-                <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
-                  enableSelfBooking ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'
-                }`}>
-                  {enableSelfBooking ? '✅ เปิดใช้งานอยู่' : '🔴 ปิดใช้งาน (ไม่ใช้)'}
-                </span>
-              </h3>
-              <p className="text-xs text-stone-500 mt-1">
-                {enableSelfBooking 
-                  ? 'ลูกค้าจะเห็นเฉพาะหน้ารายการบริการ คิวช่างแบบเรียลไทม์ และแบบฟอร์มกดลงคิวเอง' 
-                  : 'หากปิดไว้ ผู้เข้าชมผ่านลิงก์จะเห็นข้อความแจ้งว่าทางร้านปิดรับจองคิวออนไลน์ชั่วคราว'}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => onToggleSelfBooking(!enableSelfBooking)}
-              className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-sm flex items-center gap-2 active:scale-95 ${
-                enableSelfBooking
-                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
-                  : 'bg-stone-800 hover:bg-stone-900 text-stone-200'
-              }`}
-            >
-              <span>{enableSelfBooking ? 'สวิตช์: เปิดอยู่ (กดเพื่อปิด)' : 'สวิตช์: ปิดอยู่ (กดเพื่อเปิด)'}</span>
-            </button>
-          </div>
-
-          {/* Shareable Link Section */}
-          {enableSelfBooking && (
-            <div className="space-y-3 bg-[#FAF8F5] p-5 rounded-2xl border border-stone-250 animate-fade-in">
-              <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
-                🔗 ลิงก์ตรงสำหรับส่งให้ลูกค้ากดจองคิวเอง:
-              </label>
-
-              <div className="flex flex-col sm:flex-row gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={getCustomerBookingLink()}
-                  className="flex-1 px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-stone-300 bg-white text-stone-800 select-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard.writeText(getCustomerBookingLink());
-                    setCopiedCustomerLink(true);
-                    setTimeout(() => setCopiedCustomerLink(false), 3000);
-                  }}
-                  className="px-4 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
-                >
-                  {copiedCustomerLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                  <span>{copiedCustomerLink ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}</span>
-                </button>
-                <a
-                  href={getCustomerBookingLink()}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
-                >
-                  <ExternalLink className="w-4 h-4 text-amber-400" />
-                  <span>ทดลองเปิดดู</span>
-                </a>
-              </div>
-            </div>
-          )}
-
-          {/* Payment Slip / Deposit Settings Section */}
-          <div className="space-y-4 border-t border-stone-200 pt-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* Shop Name Configuration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-name-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
               <div>
-                <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
-                  <CreditCard className="w-4 h-4 text-emerald-600" />
-                  <span>ระบบบังคับโอนเงิน / แนบสลิปก่อนจองคิวออนไลน์ (Payment Slip Verification)</span>
-                </h3>
-                <p className="text-xs text-stone-500 mt-0.5">
-                  เลือกเปิดหรือปิดระบบบังคับให้ลูกค้าโอนเงินและแนบสลิปโอนเงินก่อนกดบันทึกการจองคิว
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Store className="w-5 h-5 text-brand" /> ตั้งค่าชื่อร้านตัดผม
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  กำหนดชื่อร้านที่แสดงอยู่ด้านบนสุดและส่วนต่าง ๆ ของระบบจองคิว
                 </p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const newStatus = !localRequireSlip;
-                  setLocalRequireSlip(newStatus);
-                  onUpdatePaymentSlipSettings(
-                    newStatus,
-                    localPromptPayNum.trim(),
-                    localPromptPayName.trim(),
-                    localBankName.trim(),
-                    Number(localDepositAmount) || 0
-                  );
-                }}
-                className={`px-4 py-2 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-1.5 active:scale-95 ${
-                  localRequireSlip
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
-                    : 'bg-stone-200 hover:bg-stone-300 text-stone-700'
-                }`}
-              >
-                <span>{localRequireSlip ? '🟢 เปิดบังคับโอนก่อนจอง (Active)' : '⚪ ปิด (จองได้ทันทีไม่ต้องโอน)'}</span>
-              </button>
             </div>
 
-            {paymentSlipSuccess && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <span>บันทึกตั้งค่าระบบสลิปโอนเงินเรียบร้อยแล้ว!</span>
-              </div>
-            )}
+            <div className="p-6 md:p-8">
+              <form onSubmit={handleUpdateShopNameSubmit} className="space-y-4">
+                {shopNameSuccess && (
+                  <div className="bg-brand-light border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="shop-name-success-msg">
+                    <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+                    <span>บันทึกชื่อร้านใหม่เรียบร้อยแล้ว! (ข้อความส่วนหัวจะเปลี่ยนรูปทันที)</span>
+                  </div>
+                )}
 
-            {localRequireSlip && (
-              <form onSubmit={handleSavePaymentSlipSettings} className="p-4.5 bg-amber-50/60 rounded-2xl border border-amber-200/90 space-y-4 animate-fade-in">
-                <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2">
-                  <Smartphone className="w-4 h-4 text-amber-700" />
-                  <span>ข้อมูลบัญชีรับโอน / พรอมต์เพย์ สำหรับแสดงให้ลูกค้าโอนเงินก่อนกดบันทึกจองคิว</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-stone-700">ชื่อธนาคาร / บัญชี *</label>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
                     <input
                       type="text"
+                      id="shop-name-input"
+                      placeholder="ป้อนชื่อร้านตัดผมของคุณ"
+                      value={newShopName}
+                      onChange={(e) => setNewShopName(e.target.value)}
+                      maxLength={30}
+                      className="w-full px-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-sans font-bold text-stone-900"
                       required
-                      placeholder="เช่น ธนาคารกสิกรไทย / PromptPay"
-                      value={localBankName}
-                      onChange={(e) => setLocalBankName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
                     />
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-stone-700">เลขบัญชี / เบอร์ PromptPay *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น 081-234-5678 หรือ 123-4-56789-0"
-                      value={localPromptPayNum}
-                      onChange={(e) => setLocalPromptPayNum(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-stone-700">ชื่อบัญชีผู้รับโอน *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="เช่น บจก. บาร์เบอร์โปร หรือ นายสมชาย ใจดี"
-                      value={localPromptPayName}
-                      onChange={(e) => setLocalPromptPayName(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-stone-700">
-                      จำนวนเงินมัดจำต่อคิว (บาท) <span className="text-stone-500 font-normal">(ใส่นก 0 = คิดตามราคารายการบริการ)</span>
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder="0"
-                      value={localDepositAmount}
-                      onChange={(e) => setLocalDepositAmount(e.target.value)}
-                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-xs"
+                    id="save-shop-name-btn"
+                    className={`px-6 py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+                      shopNameSuccess
+                        ? 'bg-green-700 hover:bg-green-800 text-white ring-2 ring-green-150 animate-pulse'
+                        : 'bg-brand hover:bg-brand-dark text-white'
+                    }`}
                   >
-                    <Save className="w-4 h-4" />
-                    <span>บันทึกข้อมูลการโอนเงิน</span>
+                    {shopNameSuccess ? '✅ บันทึกสำเร็จแล้ว!' : '💾 บันทึกชื่อร้าน'}
                   </button>
                 </div>
               </form>
-            )}
+            </div>
           </div>
-          <div className="space-y-4 border-t border-stone-200 pt-5">
-            <div>
-              <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
-                <Scissors className="w-4 h-4 text-brand" /> ตั้งค่ารายการบริการและระยะเวลา (สำหรับลูกค้าเลือกจอง)
-              </h3>
-              <p className="text-xs text-stone-500 mt-0.5">
-                กำหนดชื่อบริการ กำหนดระยะเวลา (นาที) และราคาบริการ เพื่อให้ระบบคำนวณรอบเวลาคิวได้อย่างถูกต้อง
-              </p>
+
+          {/* Shop Logo & Profile Configuration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-logo-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-brand" /> ตั้งค่าโลโก้ร้าน / รูปโปรไฟล์สาขา
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  อัพโหลดไฟล์รูปภาพแบรนด์ร้าน หรือเลือกสัญลักษณ์วินเทจบาร์เบอร์สำเร็จรูป
+                </p>
+              </div>
             </div>
 
-            {serviceSuccess && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-                <span>{serviceSuccess}</span>
-              </div>
-            )}
+            <div className="p-6 md:p-8 space-y-6">
+              {logoSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="logo-success-msg">
+                  <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{logoSuccess}</span>
+                </div>
+              )}
 
-            {serviceError && (
-              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-red-600" />
-                <span>{serviceError}</span>
-              </div>
-            )}
+              {logoError && (
+                <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake" id="logo-error-msg">
+                  <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>{logoError}</span>
+                </div>
+              )}
 
-            {/* Add Service Form */}
-            <form onSubmit={handleAddServiceSubmit} className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-3">
-              <span className="text-xs font-bold text-stone-800">➕ เพิ่มรายการบริการใหม่</span>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-stone-700">ชื่อบริการ *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="เช่น ตัดผมชาย + สระไดร์, ดัดวอลลุ่ม"
-                    value={newServiceName}
-                    onChange={(e) => setNewServiceName(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
-                  />
+              <div className="flex flex-col md:flex-row gap-6 items-start">
+                {/* Left: Preview Section */}
+                <div className="w-full md:w-1/3 flex flex-col items-center justify-center p-6 bg-stone-50 rounded-2xl border border-stone-100 text-center shrink-0">
+                  <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mb-3">แสดงตัวอย่างโลโก้ปัจจุบัน</span>
+                  
+                  <div className="w-24 h-24 rounded-3xl bg-white border border-stone-200 shadow-md flex items-center justify-center overflow-hidden relative group">
+                    {shopLogoUrl ? (
+                      <img
+                        src={shopLogoUrl}
+                        alt="Logo Preview"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-stone-300">
+                        <Scissors className="w-10 h-10 text-stone-300 mb-1" />
+                        <span className="text-[10px] text-stone-400 font-medium">กรรไกรเบื้องต้น</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {shopLogoUrl && (
+                    <button
+                      type="button"
+                      onClick={handleResetLogo}
+                      className="mt-4 text-[11px] text-red-600 hover:text-red-800 font-semibold flex items-center gap-1 cursor-pointer bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-all"
+                    >
+                      🗑️ รีเซ็ตใช้แบบดั้งเดิม
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-stone-700">หมวดหมู่บริการ</label>
-                  <select
-                    value={newServiceCategory}
-                    onChange={(e) => setNewServiceCategory(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
-                  >
-                    <option value="ตัดผม">ตัดผม</option>
-                    <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
-                    <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
-                    <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
-                    <option value="อื่นๆ">อื่นๆ</option>
-                  </select>
-                </div>
+                {/* Right: Upload Options */}
+                <div className="flex-1 w-full space-y-4">
+                  {/* Tab Selector */}
+                  <div className="flex border-b border-stone-100">
+                    <button
+                      type="button"
+                      onClick={() => setLogoInputTab('upload')}
+                      className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
+                        logoInputTab === 'upload' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Upload className="w-3.5 h-3.5" /> อัพโหลดไฟล์ภาพ
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogoInputTab('preset')}
+                      className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
+                        logoInputTab === 'preset' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5" /> บาร์เบอร์สำเร็จรูป
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLogoInputTab('link')}
+                      className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
+                        logoInputTab === 'link' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1.5">
+                        <LinkIcon className="w-3.5 h-3.5" /> วางลิงก์รูปภาพ
+                      </span>
+                    </button>
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-stone-700">ระยะเวลาบริการ (นาที) *</label>
-                  <select
-                    value={newServiceDuration}
-                    onChange={(e) => setNewServiceDuration(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
-                  >
-                    <option value={30}>30 นาที</option>
-                    <option value={45}>45 นาที</option>
-                    <option value={60}>1 ชั่วโมง (60 นาที)</option>
-                    <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
-                    <option value={120}>2 ชั่วโมง (120 นาที)</option>
-                    <option value={180}>3 ชั่วโมง (180 นาที)</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
-                  <input
-                    type="number"
-                    placeholder="เช่น 250, 1200"
-                    value={newServicePrice}
-                    onChange={(e) => setNewServicePrice(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-1 flex justify-end">
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-sm"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>บันทึกเพิ่มบริการ</span>
-                </button>
-              </div>
-            </form>
-
-            {/* List of Existing Services */}
-            <div className="space-y-2">
-              <span className="text-xs font-bold text-stone-800">รายการบริการที่มีในระบบ ({services.length} รายการ):</span>
-              
-              {services.length === 0 ? (
-                <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-center text-xs text-stone-500">
-                  ยังไม่มีการเพิ่มรายการบริการ กรุณากรอกเพิ่มด้านบน
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {services.map((srv) => {
-                    const isEditing = editingServiceId === srv.id;
-
-                    if (isEditing) {
-                      return (
-                        <form
-                          key={srv.id}
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            handleSaveEditService(srv.id);
-                          }}
-                          className="p-3 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 col-span-1 sm:col-span-2 shadow-xs animate-fade-in"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
-                              <Edit2 className="w-3.5 h-3.5 text-amber-700" /> กำลังแก้ไขรายการบริการ: {srv.name}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => setEditingServiceId(null)}
-                              className="text-stone-400 hover:text-stone-600 p-1 rounded-lg transition-all cursor-pointer"
-                              title="ยกเลิก"
-                            >
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div className="space-y-0.5">
-                              <label className="text-[10px] font-bold text-stone-700">ชื่อบริการ *</label>
-                              <input
-                                type="text"
-                                required
-                                value={editServiceName}
-                                onChange={(e) => setEditServiceName(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
-                              />
-                            </div>
-
-                            <div className="space-y-0.5">
-                              <label className="text-[10px] font-bold text-stone-700">หมวดหมู่บริการ</label>
-                              <select
-                                value={editServiceCategory}
-                                onChange={(e) => setEditServiceCategory(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
-                              >
-                                <option value="ตัดผม">ตัดผม</option>
-                                <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
-                                <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
-                                <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
-                                <option value="อื่นๆ">อื่นๆ</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-0.5">
-                              <label className="text-[10px] font-bold text-stone-700">ระยะเวลา (นาที)</label>
-                              <select
-                                value={editServiceDuration}
-                                onChange={(e) => setEditServiceDuration(Number(e.target.value))}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
-                              >
-                                <option value={30}>30 นาที</option>
-                                <option value={45}>45 นาที</option>
-                                <option value={60}>1 ชั่วโมง (60 นาที)</option>
-                                <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
-                                <option value={120}>2 ชั่วโมง (120 นาที)</option>
-                                <option value={180}>3 ชั่วโมง (180 นาที)</option>
-                              </select>
-                            </div>
-
-                            <div className="space-y-0.5">
-                              <label className="text-[10px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
-                              <input
-                                type="number"
-                                min="0"
-                                value={editServicePrice}
-                                onChange={(e) => setEditServicePrice(e.target.value)}
-                                className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white font-mono focus:border-brand outline-none"
-                              />
-                            </div>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setEditingServiceId(null)}
-                              className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
-                            >
-                              ยกเลิก
-                            </button>
-                            <button
-                              type="submit"
-                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
-                            >
-                              <Save className="w-3.5 h-3.5" />
-                              <span>บันทึกการแก้ไข</span>
-                            </button>
-                          </div>
-                        </form>
-                      );
-                    }
-
-                    return (
-                      <div
-                        key={srv.id}
-                        className="p-3 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-2 shadow-2xs hover:border-amber-300 transition-all"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-black text-stone-900">{srv.name}</span>
-                            {srv.category && (
-                              <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-bold">
-                                {srv.category}
-                              </span>
+                  {/* Tab Content 1: Upload File */}
+                  {logoInputTab === 'upload' && (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="border-2 border-dashed border-stone-200 rounded-2xl p-6 text-center hover:bg-stone-50/50 transition-all relative">
+                        <input
+                          type="file"
+                          id="logo-file-input"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          disabled={logoUploading}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="space-y-2">
+                          <div className="mx-auto w-10 h-10 rounded-full bg-brand/5 flex items-center justify-center text-brand">
+                            {logoUploading ? (
+                              <RefreshCw className="w-5 h-5 animate-spin" />
+                            ) : (
+                              <Upload className="w-5 h-5" />
                             )}
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1">
-                            <span className="font-mono font-bold text-amber-800">⏱️ {srv.durationMinutes} นาที</span>
-                            {srv.price !== undefined && srv.price > 0 && (
-                              <span className="font-mono font-bold text-emerald-700">฿{srv.price.toLocaleString()}</span>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditService(srv)}
-                            className="p-1.5 text-stone-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-all cursor-pointer"
-                            title="แก้ไขบริการนี้"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeletingService(srv)}
-                            className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                            title="ลบบริการนี้"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <p className="text-xs font-bold text-stone-700">
+                            {logoUploading ? 'กำลังอัพโหลดและประมวลผลขนาด...' : 'คลิกเพื่อเลือกรูปภาพโปรไฟล์ร้านของคุณ'}
+                          </p>
+                          <p className="text-[10px] text-stone-400 font-light leading-relaxed">
+                            ระบบจะทำการลดขนาดและบีบอัดเป็นอัตราส่วนพอดีให้อัตโนมัติ เพื่อประหยัดพื้นที่และโหลดไว
+                          </p>
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Tab Content 2: Preset List */}
+                  {logoInputTab === 'preset' && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-fade-in">
+                      {PRESET_LOGOS.map((preset, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => handlePresetSelect(preset.value)}
+                          className={`p-3 rounded-2xl border text-center transition-all bg-stone-50 hover:bg-white flex flex-col items-center gap-2 cursor-pointer group active:scale-95 ${
+                            shopLogoUrl === preset.value
+                              ? 'border-brand ring-2 ring-brand/10 bg-brand-light/25'
+                              : 'border-stone-100 hover:border-stone-300'
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm group-hover:scale-105 transition-all">
+                            <img
+                              src={preset.value}
+                              alt={preset.name}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full"
+                            />
+                          </div>
+                          <span className="text-[10px] font-semibold text-stone-700 truncate max-w-full">
+                            {preset.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Tab Content 3: External Link */}
+                  {logoInputTab === 'link' && (
+                    <form onSubmit={handleUpdateLogoLinkSubmit} className="space-y-3 animate-fade-in">
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="url"
+                          placeholder="https://example.com/logo.jpg"
+                          value={externalLogoUrl}
+                          onChange={(e) => setExternalLogoUrl(e.target.value)}
+                          className="flex-1 px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-stone-800 bg-white placeholder:text-stone-350"
+                        />
+                        <button
+                          type="submit"
+                          className="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 active:scale-95"
+                        >
+                          บันทึกลิงก์
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-stone-400 font-light italic">
+                        * รูปภาพภายนอกจะต้องเป็น URL สาธารณะที่ปลอดภัย (https:// เท่านั้น)
+                      </p>
+                    </form>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Brand Theme Color Palette Settings Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="theme-palette-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-brand" /> ตั้งค่าธีมสีประจำร้าน (Brand Color Palette)
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  เลือกจานสีธีมแบรนด์ประจำสาขา เพื่อปรับแต่งโทนสีบนหน้าจอทีวีหน้าร้าน และหน้าจองคิวลูกค้า
+                </p>
+              </div>
+            </div>
+
+            <div className="p-5 md:p-6 space-y-4">
+              <div className="flex items-center justify-between pb-1 border-b border-stone-100">
+                <span className="text-xs font-bold text-stone-700">🎨 เลือกธีมสีประจำร้าน ({THEME_PALETTES.length} เฉดสี):</span>
+                <span className="text-[11px] text-stone-400">คลิกเพื่อเปลี่ยนโทนสีทั้งระบบทันที</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
+                {THEME_PALETTES.map((palette) => {
+                  const isActive = (themePalette || 'amber-gold') === palette.id;
+                  return (
+                    <button
+                      key={palette.id}
+                      type="button"
+                      onClick={() => {
+                        if (onUpdateThemePalette) {
+                          onUpdateThemePalette(palette.id);
+                          triggerMascotPopup(`เปลี่ยนเป็นธีม ${palette.name} เรียบร้อยแล้วงับ! 🎨✨`, 'เปลี่ยนธีมสีร้าน!', 'happy');
+                        }
+                      }}
+                      title={palette.description}
+                      className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2 cursor-pointer relative active:scale-95 ${
+                        isActive
+                          ? 'border-brand bg-brand-light ring-2 ring-brand/30 shadow-xs'
+                          : 'border-stone-200 bg-white hover:border-stone-300 hover:bg-stone-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="flex items-center -space-x-1 shrink-0">
+                          {palette.previewColors.slice(0, 3).map((color, idx) => (
+                            <span
+                              key={idx}
+                              className="w-3.5 h-3.5 rounded-full border border-stone-300 shadow-2xs inline-block"
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-bold text-stone-900 truncate">
+                          {palette.name}
+                        </span>
+                      </div>
+
+                      {isActive && (
+                        <span className="w-5 h-5 rounded-full bg-brand text-white flex items-center justify-center shrink-0 shadow-2xs">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected Theme Description Note */}
+              <div className="text-[11px] text-stone-600 bg-stone-50 px-3.5 py-2 rounded-xl border border-stone-200/70 flex items-center gap-2">
+                <span className="font-bold text-stone-800 shrink-0">💡 รายละเอียดธีมที่เลือก:</span>
+                <span className="truncate">{getPaletteById(themePalette || 'amber-gold').description}</span>
+              </div>
+
+              {/* Live Palette Preview Banner */}
+              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                    <Eye className="w-4 h-4 text-brand" /> ตัวอย่างการแสดงผลธีมปัจจุบัน ({getPaletteById(themePalette || 'amber-gold').name}):
+                  </span>
+                  <span className="text-[11px] text-stone-500 font-mono">
+                    โค้ดสีแบรนด์: <span className="font-bold text-stone-800">{getPaletteById(themePalette || 'amber-gold').brand}</span>
+                  </span>
+                </div>
+
+                {/* Mini Live Preview Screen */}
+                <div className="bg-white rounded-2xl border border-stone-200/80 p-4 space-y-3 shadow-2xs">
+                  <div className="bg-stone-earth text-brand-light p-3.5 rounded-xl flex items-center justify-between border-l-4 border-brand">
+                    <div className="flex items-center gap-2">
+                      <Scissors className="w-4 h-4 text-brand" />
+                      <span className="text-xs font-bold">{shopName || 'BARBER PRO'} - โหมดแสดงผล</span>
+                    </div>
+                    <span className="text-[10px] bg-brand text-white px-2 py-0.5 rounded font-bold">
+                      เปิดบริการสด (OPEN)
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <button type="button" className="bg-brand hover:bg-brand-dark text-white px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-2xs">
+                      ปุ่มกดหลัก (Primary Button)
+                    </button>
+                    <span className="bg-brand-light text-brand-dark border border-brand/20 px-3 py-1 rounded-xl text-xs font-bold">
+                      ป้ายแท็กไฮไลท์ (Badge)
+                    </span>
+                    <span className="bg-brand-warm text-stone-800 px-3 py-1 rounded-xl text-xs font-medium">
+                      พื้นหลังอุ่น (Warm Area)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Admin PIN Configuration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="admin-pin-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  🔐 ตั้งค่ารหัสผ่าน PIN สาขา
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  รหัสสำหรับการล็อกหน้าตั้งค่าช่างและข้อมูลหลังบ้านเพื่อความปลอดภัยของกิจการ
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8">
+              <form onSubmit={handleUpdatePinSubmit} className="space-y-4">
+                {pinChangeSuccess && (
+                  <div className="bg-[#FAF6F0] border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="pin-change-success-msg">
+                    <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+                    <span>บันทึกรหัส PIN ใหม่เรียบร้อยแล้ว! (กรุณาจำรหัสผ่านใหม่นี้ไว้ใช้งาน)</span>
+                  </div>
+                )}
+
+                {pinChangeError && (
+                  <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake" id="pin-change-error-msg">
+                    <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{pinChangeError}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      maxLength={12}
+                      id="admin-pin-input"
+                      placeholder="ป้อนรหัสผ่าน"
+                      value={newPinWord}
+                      onChange={(e) => setNewPinWord(e.target.value.replace(/[^0-9]/g, ''))}
+                      className="w-full px-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-mono text-lg font-bold text-stone-900"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    id="save-pin-code-btn"
+                    className={`px-6 py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95 ${
+                      pinChangeSuccess
+                        ? 'bg-green-700 hover:bg-green-800 text-white ring-2 ring-green-150 animate-pulse'
+                        : 'bg-brand hover:bg-brand-dark text-white'
+                    }`}
+                  >
+                    {pinChangeSuccess ? '✅ บันทึก PIN สำเร็จ!' : '💾 บันทึกรหัส PIN ใหม่'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* SECTION 2: เวลา & คิว (Hours, Holidays, Duration, Services)*/}
+      {/* ========================================================= */}
+      {isShow('hours') && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Shop Business Hours Configuration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-hours-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-brand" /> ตั้งค่าเวลาทำการร้าน (เวลาเปิด-ปิดร้าน)
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  กำหนดเวลาเปิดและปิดร้าน เพื่อให้สอดคล้องกันทั้งการแสดงผลตารางคิวรวมช่าง และการเลือกเวลาจอง
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-4">
+              {hoursSuccess && (
+                <div className="bg-amber-100 border border-brand/30 text-stone-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="hours-success-msg">
+                  <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+                  <span>บันทึกตั้งค่าเวลาเปิด-ปิดร้านเรียบร้อยแล้ว!</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
+                  <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                    🌅 เวลาเปิดร้าน
+                  </label>
+                  <select
+                    value={shopOpenTime || '10:00'}
+                    onChange={(e) => {
+                      onUpdateShopOpenTime(e.target.value);
+                      setHoursSuccess(true);
+                      setTimeout(() => setHoursSuccess(false), 3000);
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
+                  >
+                    {hourOptions.map((opt) => (
+                      <option key={`open-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
+                  <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
+                    🌙 เวลาปิดร้าน
+                  </label>
+                  <select
+                    value={shopCloseTime || '21:00'}
+                    onChange={(e) => {
+                      onUpdateShopCloseTime(e.target.value);
+                      setHoursSuccess(true);
+                      setTimeout(() => setHoursSuccess(false), 3000);
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
+                  >
+                    {hourOptions.map((opt) => (
+                      <option key={`close-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Shop Holiday Configuration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-holiday-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  📅 กำหนดวันหยุดประจำสัปดาห์ของร้าน
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  กำหนดวันหยุดของร้านตัดผม โดยหากถึงวันดังกล่าว ระบบจะปิดไม่ให้รับคิวจองอัตโนมัติทั้งสาขา
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              {holidaysSuccess && (
+                <div className="bg-[#FAF6F0] border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="holiday-save-success-msg">
+                  <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+                  <span>บันทึกข้อมูลวันหยุดร้านสำเร็จแล้ว!</span>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleClearHolidays}
+                    className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${
+                      shopHolidays.length === 0
+                        ? 'bg-brand text-white border-brand shadow-sm'
+                        : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
+                    }`}
+                  >
+                    🚫 ไม่มีวันหยุด (เปิดให้บริการทุกวัน)
+                  </button>
+                </div>
+
+                <div className="h-px bg-stone-100 my-4"></div>
+
+                <p className="text-xs font-bold text-stone-700">เลือกวันหยุดประจำสัปดาห์ของร้าน (สามารถเลือกได้มากกว่า 1 วัน):</p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {DAYS_OF_WEEK.map((day) => {
+                    const isSelected = shopHolidays.includes(day.value);
+                    return (
+                      <button
+                        key={day.value}
+                        type="button"
+                        onClick={() => handleToggleHoliday(day.value)}
+                        className={`p-3.5 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
+                          isSelected
+                            ? 'bg-red-50 border-red-300 text-red-700 shadow-xs ring-2 ring-red-100'
+                            : 'bg-stone-50/50 hover:bg-stone-50 text-stone-850 border-stone-200'
+                        }`}
+                      >
+                        <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-red-600 animate-pulse' : 'bg-stone-300'}`}></span>
+                        {day.label}
+                      </button>
                     );
                   })}
                 </div>
-              )}
+              </div>
+            </div>
+          </div>
+
+          {/* Target Booking Duration Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="booking-slot-duration-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Clock className="w-5 h-5 text-brand" /> ตั้งค่าเวลาต่อหนึ่งคิวจอง
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  กำหนดระยะเวลาของแต่ละคิวเพื่อคำนวณและปรับระยะเวลาสิ้นสุดคิวโดยอัตโนมัติเมื่อกดเลือกเวลาเริ่มจอง
+                </p>
+              </div>
             </div>
 
-            {/* Service Delete Confirmation Popup Modal */}
-            {deletingService && (
-              <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
-                <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 space-y-4 text-center">
-                  <div className="w-14 h-14 bg-red-100 rounded-2xl border border-red-200 flex items-center justify-center text-red-600 mx-auto shadow-inner">
-                    <Trash2 className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-serif font-black text-stone-900">ยืนยันการลบบริการ</h3>
-                    <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
-                      คุณต้องการลบบริการ <span className="font-extrabold text-stone-900 bg-stone-100 px-1.5 py-0.5 rounded">"{deletingService.name}"</span> ออกจากระบบใช่หรือไม่?
-                    </p>
-                    <p className="text-[11px] text-red-500 font-bold mt-1">
-                      ⚠️ ข้อมูลบริการนี้จะถูกลบถาวร
-                    </p>
-                  </div>
-                  <div className="flex gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setDeletingService(null)}
-                      className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                    >
-                      ยกเลิก
-                    </button>
+            <div className="p-6 md:p-8 space-y-4">
+              {slotSuccess && (
+                <div className="bg-amber-100 border border-brand/30 text-stone-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="slot-success-msg">
+                  <CheckCircle className="w-4 h-4 text-brand shrink-0" />
+                  <span>บันทึกตั้งค่ารอบเวลาต่อหนึ่งคิวสำเร็จแล้ว!</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
+                <div>
+                  <p className="text-xs font-bold text-stone-700">ระยะเวลากำหนดต่อ 1 คิวจอง (คนละ)</p>
+                  <p className="text-[11px] text-stone-500 mt-0.5">เมื่อเลือกเวลาเริ่มจองในระบบ ระบบจะบวกเพิ่มเวลาโดยอัตโนมัติตามค่านี้</p>
+                </div>
+                
+                <div className="flex items-center gap-2 shrink-0">
+                  <select
+                    value={tempSlotDuration}
+                    onChange={(e) => {
+                      const d = Number(e.target.value);
+                      setTempSlotDuration(d);
+                      onUpdateSlotDuration(d);
+                      setSlotSuccess(true);
+                      setTimeout(() => setSlotSuccess(false), 3000);
+                    }}
+                    className="px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
+                  >
+                    <option value={30}>30 นาที (ค่าเริ่มต้น)</option>
+                    <option value={60}>1 ชั่วโมง (60 นาที)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Self-Booking Portal Toggle & Link Settings Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="customer-self-booking-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Globe className="w-5 h-5 text-brand" /> ระบบลิงก์ให้ลูกค้าจองคิวเองออนไลน์
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  เปิดหรือปิดฟีเจอร์นี้ได้ตามความต้องการ หากเปิดใช้ จะสามารถส่งลิงก์ให้ลูกค้ากดเลือกบริการ ช่าง และรอบเวลาว่างได้เอง
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 md:p-8 space-y-6">
+              
+              {/* Main Toggle Switch */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-stone-50 border border-stone-200">
+                <div>
+                  <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+                    <span>🌐 สถานะระบบจองคิวออนไลน์สำหรับลูกค้า:</span>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                      enableSelfBooking ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {enableSelfBooking ? '✅ เปิดใช้งานอยู่' : '🔴 ปิดใช้งาน (ไม่ใช้)'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-stone-500 mt-1">
+                    {enableSelfBooking 
+                      ? 'ลูกค้าจะเห็นเฉพาะหน้ารายการบริการ คิวช่างแบบเรียลไทม์ และแบบฟอร์มกดลงคิวเอง' 
+                      : 'หากปิดไว้ ผู้เข้าชมผ่านลิงก์จะเห็นข้อความแจ้งว่าทางร้านปิดรับจองคิวออนไลน์ชั่วคราว'}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => onToggleSelfBooking(!enableSelfBooking)}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-sm flex items-center gap-2 active:scale-95 ${
+                    enableSelfBooking
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
+                      : 'bg-stone-800 hover:bg-stone-900 text-stone-200'
+                  }`}
+                >
+                  <span>{enableSelfBooking ? 'สวิตช์: เปิดอยู่ (กดเพื่อปิด)' : 'สวิตช์: ปิดอยู่ (กดเพื่อเปิด)'}</span>
+                </button>
+              </div>
+
+              {/* Shareable Link Section */}
+              {enableSelfBooking && (
+                <div className="space-y-3 bg-[#FAF8F5] p-5 rounded-2xl border border-stone-250 animate-fade-in">
+                  <label className="text-xs font-bold text-stone-800 flex items-center gap-1.5">
+                    🔗 ลิงก์ตรงสำหรับส่งให้ลูกค้ากดจองคิวเอง:
+                  </label>
+
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={getCustomerBookingLink()}
+                      className="flex-1 px-3.5 py-2.5 text-xs font-mono font-bold rounded-xl border border-stone-300 bg-white text-stone-800 select-all"
+                    />
                     <button
                       type="button"
                       onClick={() => {
-                        onDeleteService(deletingService.id);
-                        setDeletingService(null);
-                        setServiceSuccess('ลบบริการเรียบร้อยแล้ว!');
-                        setTimeout(() => setServiceSuccess(null), 3000);
+                        navigator.clipboard.writeText(getCustomerBookingLink());
+                        setCopiedCustomerLink(true);
+                        setTimeout(() => setCopiedCustomerLink(false), 3000);
                       }}
-                      className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                      className="px-4 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
                     >
-                      ยืนยันลบบริการ
+                      {copiedCustomerLink ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      <span>{copiedCustomerLink ? 'คัดลอกแล้ว' : 'คัดลอกลิงก์'}</span>
                     </button>
+                    <a
+                      href={getCustomerBookingLink()}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 bg-stone-900 hover:bg-stone-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5 shrink-0"
+                    >
+                      <ExternalLink className="w-4 h-4 text-amber-400" />
+                      <span>ทดลองเปิดดู</span>
+                    </a>
                   </div>
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Services & Pricing Management Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="services-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-brand" /> ตั้งค่ารายการบริการและระยะเวลา (สำหรับลูกค้าเลือกจอง)
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  กำหนดชื่อบริการ กำหนดระยะเวลา (นาที) และราคาบริการ เพื่อให้ระบบคำนวณรอบเวลาคิวได้อย่างถูกต้อง
+                </p>
               </div>
-            )}
-
-          </div>
-
-        </div>
-      </div>
-
-      
-      {/* Shop Name Configuration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-name-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <Store className="w-5 h-5 text-brand" /> ตั้งค่าชื่อร้านตัดผม
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              กำหนดชื่อร้านที่แสดงอยู่ด้านบนสุดและส่วนต่าง ๆ ของระบบจองคิว
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8">
-          <form onSubmit={handleUpdateShopNameSubmit} className="space-y-4">
-            {shopNameSuccess && (
-              <div className="bg-brand-light border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="shop-name-success-msg">
-                <CheckCircle className="w-4 h-4 text-brand shrink-0" />
-                <span>บันทึกชื่อร้านใหม่เรียบร้อยแล้ว! (ข้อความส่วนหัวจะเปลี่ยนรูปทันที)</span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  id="shop-name-input"
-                  placeholder="ป้อนชื่อร้านตัดผมของคุณ"
-                  value={newShopName}
-                  onChange={(e) => setNewShopName(e.target.value)}
-                  maxLength={30}
-                  className="w-full px-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-sans font-bold text-stone-900"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                id="save-shop-name-btn"
-                className={`px-6 py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95 ${
-                  shopNameSuccess
-                    ? 'bg-green-700 hover:bg-green-800 text-white ring-2 ring-green-150 animate-pulse'
-                    : 'bg-brand hover:bg-brand-dark text-white'
-                }`}
-              >
-                {shopNameSuccess ? '✅ บันทึกสำเร็จแล้ว!' : '💾 บันทึกชื่อร้าน'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      {/* Target Booking Duration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="booking-slot-duration-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <Clock className="w-5 h-5 text-brand" /> ตั้งค่าเวลาต่อหนึ่งคิวจอง
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              กำหนดระยะเวลาของแต่ละคิวเพื่อคำนวณและปรับระยะเวลาสิ้นสุดคิวโดยอัตโนมัติเมื่อกดเลือกเวลาเริ่มจอง
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-4">
-          {slotSuccess && (
-            <div className="bg-amber-100 border border-brand/30 text-stone-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="slot-success-msg">
-              <CheckCircle className="w-4 h-4 text-brand shrink-0" />
-              <span>บันทึกตั้งค่ารอบเวลาต่อหนึ่งคิวสำเร็จแล้ว!</span>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
-            <div>
-              <p className="text-xs font-bold text-stone-700">ระยะเวลากำหนดต่อ 1 คิวจอง (คนละ)</p>
-              <p className="text-[11px] text-stone-500 mt-0.5">เมื่อเลือกเวลาเริ่มจองในระบบ ระบบจะบวกเพิ่มเวลาโดยอัตโนมัติตามค่านี้</p>
-            </div>
-            
-            <div className="flex items-center gap-2 shrink-0">
-              <select
-                value={tempSlotDuration}
-                onChange={(e) => {
-                  const d = Number(e.target.value);
-                  setTempSlotDuration(d);
-                  onUpdateSlotDuration(d);
-                  setSlotSuccess(true);
-                  setTimeout(() => setSlotSuccess(false), 3000);
-                }}
-                className="px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
-              >
-                <option value={30}>30 นาที (ค่าเริ่มต้น)</option>
-                <option value={60}>1 ชั่วโมง (60 นาที)</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Shop Business Hours Configuration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-hours-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <Clock className="w-5 h-5 text-brand" /> ตั้งค่าเวลาทำการร้าน (เวลาเปิด-ปิดร้าน)
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              กำหนดเวลาเปิดและปิดร้าน เพื่อให้สอดคล้องกันทั้งการแสดงผลตารางคิวรวมช่าง และการเลือกเวลาจอง/ปิดคิว
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-4">
-          {hoursSuccess && (
-            <div className="bg-amber-100 border border-brand/30 text-stone-800 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="hours-success-msg">
-              <CheckCircle className="w-4 h-4 text-brand shrink-0" />
-              <span>บันทึกตั้งค่าเวลาเปิด-ปิดร้านเรียบร้อยแล้ว!</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
-              <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                🌅 เวลาเปิดร้าน
-              </label>
-              <select
-                value={shopOpenTime || '10:00'}
-                onChange={(e) => {
-                  onUpdateShopOpenTime(e.target.value);
-                  setHoursSuccess(true);
-                  setTimeout(() => setHoursSuccess(false), 3000);
-                }}
-                className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
-              >
-                {hourOptions.map((opt) => (
-                  <option key={`open-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
-                ))}
-              </select>
             </div>
 
-            <div className="flex flex-col gap-1.5 bg-stone-50 p-4 rounded-2xl border border-stone-250/50">
-              <label className="text-xs font-bold text-stone-700 flex items-center gap-1.5">
-                🌙 เวลาปิดร้าน
-              </label>
-              <select
-                value={shopCloseTime || '21:00'}
-                onChange={(e) => {
-                  onUpdateShopCloseTime(e.target.value);
-                  setHoursSuccess(true);
-                  setTimeout(() => setHoursSuccess(false), 3000);
-                }}
-                className="w-full px-4 py-2.5 rounded-xl border border-stone-300 focus:border-brand focus:ring-2 focus:ring-brand/10 outline-none transition-all bg-white font-bold text-stone-900 text-xs shadow-2xs cursor-pointer"
-              >
-                {hourOptions.map((opt) => (
-                  <option key={`close-opt-${opt}`} value={opt}>{opt.replace(':', '.')} น.</option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      </div>
+            <div className="p-6 md:p-8 space-y-6">
+              {serviceSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>{serviceSuccess}</span>
+                </div>
+              )}
 
-      {/* Shop Logo & Profile Configuration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-logo-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <ImageIcon className="w-5 h-5 text-brand" /> ตั้งค่าโลโก้ร้าน / รูปโปรไฟล์สาขา
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              อัพโหลดไฟล์รูปภาพแบรนด์ร้าน หรือเลือกสัญลักษณ์วินเทจบาร์เบอร์สำเร็จรูป
-            </p>
-          </div>
-        </div>
+              {serviceError && (
+                <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-2.5 rounded-2xl text-xs font-bold flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-red-600" />
+                  <span>{serviceError}</span>
+                </div>
+              )}
 
-        <div className="p-6 md:p-8 space-y-6">
-          {logoSuccess && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="logo-success-msg">
-              <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>{logoSuccess}</span>
-            </div>
-          )}
+              {/* Add Service Form */}
+              <form onSubmit={handleAddServiceSubmit} className="p-4 bg-stone-50 rounded-2xl border border-stone-200/80 space-y-3">
+                <span className="text-xs font-bold text-stone-800">➕ เพิ่มรายการบริการใหม่</span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">ชื่อบริการ *</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="เช่น ตัดผมชาย + สระไดร์, ดัดวอลลุ่ม"
+                      value={newServiceName}
+                      onChange={(e) => setNewServiceName(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                    />
+                  </div>
 
-          {logoError && (
-            <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake" id="logo-error-msg">
-              <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-              <span>{logoError}</span>
-            </div>
-          )}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">หมวดหมู่บริการ</label>
+                    <select
+                      value={newServiceCategory}
+                      onChange={(e) => setNewServiceCategory(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                    >
+                      <option value="ตัดผม">ตัดผม</option>
+                      <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
+                      <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
+                      <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
+                      <option value="อื่นๆ">อื่นๆ</option>
+                    </select>
+                  </div>
 
-          <div className="flex flex-col md:flex-row gap-6 items-start">
-            {/* Left: Preview Section */}
-            <div className="w-full md:w-1/3 flex flex-col items-center justify-center p-6 bg-stone-50 rounded-2xl border border-stone-100 text-center shrink-0">
-              <span className="text-[10px] text-stone-500 font-bold uppercase tracking-wider mb-3">แสดงตัวอย่างโลโก้ปัจจุบัน</span>
-              
-              <div className="w-24 h-24 rounded-3xl bg-white border border-stone-200 shadow-md flex items-center justify-center overflow-hidden relative group">
-                {shopLogoUrl ? (
-                  <img
-                    src={shopLogoUrl}
-                    alt="Logo Preview"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">ระยะเวลาบริการ (นาที) *</label>
+                    <select
+                      value={newServiceDuration}
+                      onChange={(e) => setNewServiceDuration(Number(e.target.value))}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                    >
+                      <option value={30}>30 นาที</option>
+                      <option value={45}>45 นาที</option>
+                      <option value={60}>1 ชั่วโมง (60 นาที)</option>
+                      <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
+                      <option value={120}>2 ชั่วโมง (120 นาที)</option>
+                      <option value={180}>3 ชั่วโมง (180 นาที)</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
+                    <input
+                      type="number"
+                      placeholder="เช่น 250, 1200"
+                      value={newServicePrice}
+                      onChange={(e) => setNewServicePrice(e.target.value)}
+                      className="w-full px-3 py-2 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-1 flex justify-end">
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>บันทึกเพิ่มบริการ</span>
+                  </button>
+                </div>
+              </form>
+
+              {/* List of Existing Services */}
+              <div className="space-y-2">
+                <span className="text-xs font-bold text-stone-800">รายการบริการที่มีในระบบ ({services.length} รายการ):</span>
+                
+                {services.length === 0 ? (
+                  <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-center text-xs text-stone-500">
+                    ยังไม่มีการเพิ่มรายการบริการ กรุณากรอกเพิ่มด้านบน
+                  </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-stone-300">
-                    <Scissors className="w-10 h-10 text-stone-300 mb-1" />
-                    <span className="text-[10px] text-stone-400 font-medium">กรรไกรเบื้องต้น</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {services.map((srv) => {
+                      const isEditing = editingServiceId === srv.id;
+
+                      if (isEditing) {
+                        return (
+                          <form
+                            key={srv.id}
+                            onSubmit={(e) => {
+                              e.preventDefault();
+                              handleSaveEditService(srv.id);
+                            }}
+                            className="p-3 bg-amber-50/70 border border-amber-300 rounded-xl space-y-2 col-span-1 sm:col-span-2 shadow-xs animate-fade-in"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                                <Edit2 className="w-3.5 h-3.5 text-amber-700" /> กำลังแก้ไขรายการบริการ: {srv.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setEditingServiceId(null)}
+                                className="text-stone-400 hover:text-stone-600 p-1 rounded-lg transition-all cursor-pointer"
+                                title="ยกเลิก"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div className="space-y-0.5">
+                                <label className="text-[10px] font-bold text-stone-700">ชื่อบริการ *</label>
+                                <input
+                                  type="text"
+                                  required
+                                  value={editServiceName}
+                                  onChange={(e) => setEditServiceName(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[10px] font-bold text-stone-700">หมวดหมู่บริการ</label>
+                                <select
+                                  value={editServiceCategory}
+                                  onChange={(e) => setEditServiceCategory(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
+                                >
+                                  <option value="ตัดผม">ตัดผม</option>
+                                  <option value="ทำเคมี">ทำเคมี / ย้อมสี</option>
+                                  <option value="ดัดผม">ดัดผม / ดัดวอลลุ่ม</option>
+                                  <option value="สระเซ็ต">สระ เซ็ต ไดร์</option>
+                                  <option value="อื่นๆ">อื่นๆ</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[10px] font-bold text-stone-700">ระยะเวลา (นาที)</label>
+                                <select
+                                  value={editServiceDuration}
+                                  onChange={(e) => setEditServiceDuration(Number(e.target.value))}
+                                  className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white focus:border-brand outline-none"
+                                >
+                                  <option value={30}>30 นาที</option>
+                                  <option value={45}>45 นาที</option>
+                                  <option value={60}>1 ชั่วโมง (60 นาที)</option>
+                                  <option value={90}>1 ชั่วโมง 30 นาที (90 นาที)</option>
+                                  <option value={120}>2 ชั่วโมง (120 นาที)</option>
+                                  <option value={180}>3 ชั่วโมง (180 นาที)</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-0.5">
+                                <label className="text-[10px] font-bold text-stone-700">ราคาประเมิน (บาท)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editServicePrice}
+                                  onChange={(e) => setEditServicePrice(e.target.value)}
+                                  className="w-full px-2.5 py-1.5 text-xs font-bold rounded-lg border border-stone-300 bg-white font-mono focus:border-brand outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditingServiceId(null)}
+                                className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                              >
+                                ยกเลิก
+                              </button>
+                              <button
+                                type="submit"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs active:scale-95"
+                              >
+                                <Save className="w-3.5 h-3.5" />
+                                <span>บันทึกการแก้ไข</span>
+                              </button>
+                            </div>
+                          </form>
+                        );
+                      }
+
+                      return (
+                        <div
+                          key={srv.id}
+                          className="p-3 bg-white rounded-xl border border-stone-200 flex items-center justify-between gap-2 shadow-2xs hover:border-amber-300 transition-all"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-stone-900">{srv.name}</span>
+                              {srv.category && (
+                                <span className="text-[9px] px-1.5 py-0.2 bg-stone-100 text-stone-600 rounded font-bold">
+                                  {srv.category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1">
+                              <span className="font-mono font-bold text-amber-800">⏱️ {srv.durationMinutes} นาที</span>
+                              {srv.price !== undefined && srv.price > 0 && (
+                                <span className="font-mono font-bold text-emerald-700">฿{srv.price.toLocaleString()}</span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditService(srv)}
+                              className="p-1.5 text-stone-500 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-all cursor-pointer"
+                              title="แก้ไขบริการนี้"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeletingService(srv)}
+                              className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
+                              title="ลบบริการนี้"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {shopLogoUrl && (
-                <button
-                  type="button"
-                  onClick={handleResetLogo}
-                  className="mt-4 text-[11px] text-red-600 hover:text-red-800 font-semibold flex items-center gap-1 cursor-pointer bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-xl transition-all"
-                >
-                  🗑️ รีเซ็ตใช้แบบดั้งเดิม
-                </button>
-              )}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* SECTION 3: ระบบชำระเงิน & มัดจำ (Payment Slip, PromptPay) */}
+      {/* ========================================================= */}
+      {isShow('payment') && (
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* Payment Slip / Deposit Settings Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="payment-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-emerald-400" /> ระบบชำระเงิน & โอนเงินมัดจำก่อนจองคิว
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  ตั้งค่าระบบบังคับให้ลูกค้าโอนเงินมัดจำและแนบสลิปโอนเงินผ่าน PromptPay ก่อนกดยืนยันการจองคิวออนไลน์
+                </p>
+              </div>
             </div>
 
-            {/* Right: Upload Options */}
-            <div className="flex-1 w-full space-y-4">
-              {/* Tab Selector */}
-              <div className="flex border-b border-stone-100">
+            <div className="p-6 md:p-8 space-y-6">
+              
+              {/* Main Toggle Switch */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-stone-50 border border-stone-200">
+                <div>
+                  <h3 className="text-sm font-extrabold text-stone-900 flex items-center gap-2">
+                    <span>💳 สถานะระบบบังคับแนบสลิปโอนเงิน:</span>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
+                      localRequireSlip ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-700'
+                    }`}>
+                      {localRequireSlip ? '🟢 เปิดบังคับโอนก่อนจอง (Active)' : '⚪ ปิด (จองได้ทันทีไม่ต้องโอน)'}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-stone-500 mt-1">
+                    {localRequireSlip 
+                      ? 'ลูกค้าจะต้องสแกน QR Code / โอนเงิน และอัปโหลดไฟล์สลิปโอนเงินก่อนกดบันทึกการจองคิว' 
+                      : 'ลูกค้าสามารถกดลงคิวได้ทันทีโดยไม่ต้องแนบสลิปการโอนเงิน'}
+                  </p>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setLogoInputTab('upload')}
-                  className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
-                    logoInputTab === 'upload' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
+                  onClick={() => {
+                    const newStatus = !localRequireSlip;
+                    setLocalRequireSlip(newStatus);
+                    onUpdatePaymentSlipSettings(
+                      newStatus,
+                      localPromptPayNum.trim(),
+                      localPromptPayName.trim(),
+                      localBankName.trim(),
+                      Number(localDepositAmount) || 0
+                    );
+                  }}
+                  className={`px-5 py-2.5 rounded-2xl text-xs font-black transition-all cursor-pointer shrink-0 shadow-xs flex items-center gap-2 active:scale-95 ${
+                    localRequireSlip
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-200'
+                      : 'bg-stone-800 hover:bg-stone-900 text-stone-200'
                   }`}
                 >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Upload className="w-3.5 h-3.5" /> อัพโหลดไฟล์ภาพ
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLogoInputTab('preset')}
-                  className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
-                    logoInputTab === 'preset' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
-                  }`}
-                >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" /> บาร์เบอร์สำเร็จรูป
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLogoInputTab('link')}
-                  className={`flex-1 pb-2.5 text-xs font-bold transition-all relative cursor-pointer ${
-                    logoInputTab === 'link' ? 'text-brand border-b-2 border-brand' : 'text-stone-400 hover:text-stone-600'
-                  }`}
-                >
-                  <span className="flex items-center justify-center gap-1.5">
-                    <LinkIcon className="w-3.5 h-3.5" /> วางลิงก์รูปภาพ
-                  </span>
+                  <span>{localRequireSlip ? 'สวิตช์: เปิดอยู่ (กดเพื่อปิด)' : 'สวิตช์: ปิดอยู่ (กดเพื่อเปิด)'}</span>
                 </button>
               </div>
 
-              {/* Tab Content 1: Upload File */}
-              {logoInputTab === 'upload' && (
-                <div className="space-y-3 animate-fade-in">
-                  <div className="border-2 border-dashed border-stone-200 rounded-2xl p-6 text-center hover:bg-stone-50/50 transition-all relative">
-                    <input
-                      type="file"
-                      id="logo-file-input"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      disabled={logoUploading}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <div className="space-y-2">
-                      <div className="mx-auto w-10 h-10 rounded-full bg-brand/5 flex items-center justify-center text-brand">
-                        {logoUploading ? (
-                          <RefreshCw className="w-5 h-5 animate-spin" />
-                        ) : (
-                          <Upload className="w-5 h-5" />
-                        )}
-                      </div>
-                      <p className="text-xs font-bold text-stone-700">
-                        {logoUploading ? 'กำลังอัพโหลดและประมวลผลขนาด...' : 'คลิกเพื่อเลือกรูปภาพโปรไฟล์ร้านของคุณ'}
-                      </p>
-                      <p className="text-[10px] text-stone-400 font-light leading-relaxed">
-                        ระบบจะทำการลดขนาดและบีบอัดเป็นอัตราส่วนพอดีให้อัตโนมัติ เพื่อประหยัดพื้นที่และโหลดไว
-                      </p>
+              {paymentSlipSuccess && (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-bold flex items-center gap-2 animate-fade-in">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>บันทึกตั้งค่าระบบสลิปโอนเงินและ PromptPay เรียบร้อยแล้ว!</span>
+                </div>
+              )}
+
+              {localRequireSlip && (
+                <form onSubmit={handleSavePaymentSlipSettings} className="p-5 bg-amber-50/70 rounded-2xl border border-amber-200 space-y-4 animate-fade-in">
+                  <div className="text-xs font-extrabold text-amber-900 flex items-center gap-2 border-b border-amber-200/80 pb-2">
+                    <Smartphone className="w-4 h-4 text-amber-700" />
+                    <span>ข้อมูลบัญชีรับโอน / พรอมต์เพย์ สำหรับแสดงให้ลูกค้าโอนเงินก่อนจองคิว</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-stone-700">ชื่อธนาคาร / บัญชี *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น ธนาคารกสิกรไทย / PromptPay"
+                        value={localBankName}
+                        onChange={(e) => setLocalBankName(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-stone-700">เลขบัญชี / เบอร์ PromptPay *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น 081-234-5678 หรือ 123-4-56789-0"
+                        value={localPromptPayNum}
+                        onChange={(e) => setLocalPromptPayNum(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-stone-700">ชื่อบัญชีผู้รับโอน *</label>
+                      <input
+                        type="text"
+                        required
+                        placeholder="เช่น บจก. บาร์เบอร์โปร หรือ นายสมชาย ใจดี"
+                        value={localPromptPayName}
+                        onChange={(e) => setLocalPromptPayName(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-stone-700">
+                        จำนวนเงินมัดจำต่อคิว (บาท) <span className="text-stone-500 font-normal">(ใส่ 0 = คิดตามราคาบริการ)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={localDepositAmount}
+                        onChange={(e) => setLocalDepositAmount(e.target.value)}
+                        className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-stone-300 font-bold bg-white focus:border-brand outline-none font-mono"
+                      />
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Tab Content 2: Preset List */}
-              {logoInputTab === 'preset' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 animate-fade-in">
-                  {PRESET_LOGOS.map((preset, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => handlePresetSelect(preset.value)}
-                      className={`p-3 rounded-2xl border text-center transition-all bg-stone-50 hover:bg-white flex flex-col items-center gap-2 cursor-pointer group active:scale-95 ${
-                        shopLogoUrl === preset.value
-                          ? 'border-brand ring-2 ring-brand/10 bg-brand-light/25'
-                          : 'border-stone-100 hover:border-stone-300'
-                      }`}
-                    >
-                      <div className="w-12 h-12 rounded-xl overflow-hidden shadow-sm group-hover:scale-105 transition-all">
-                        <img
-                          src={preset.value}
-                          alt={preset.name}
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full"
-                        />
-                      </div>
-                      <span className="text-[10px] font-semibold text-stone-700 truncate max-w-full">
-                        {preset.name}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Tab Content 3: External Link */}
-              {logoInputTab === 'link' && (
-                <form onSubmit={handleUpdateLogoLinkSubmit} className="space-y-3 animate-fade-in">
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input
-                      type="url"
-                      placeholder=""
-                      value={externalLogoUrl}
-                      onChange={(e) => setExternalLogoUrl(e.target.value)}
-                      className="flex-1 px-3.5 py-2.5 text-xs rounded-xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none text-stone-800 bg-white placeholder:text-stone-350"
-                    />
+                  <div className="flex justify-end pt-2">
                     <button
                       type="submit"
-                      className="px-5 py-2.5 bg-brand hover:bg-brand-dark text-white rounded-xl text-xs font-bold cursor-pointer transition-all shrink-0 active:scale-95"
+                      className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold cursor-pointer transition-all flex items-center gap-1.5 active:scale-95 shadow-xs"
                     >
-                      บันทึกลิงก์
+                      <Save className="w-4 h-4" />
+                      <span>บันทึกข้อมูลการโอนเงิน</span>
                     </button>
                   </div>
-                  <p className="text-[10px] text-stone-400 font-light italic">
-                    * รูปภาพภายนอกจะต้องเป็น URL สาธารณะที่ปลอดภัย (https:// เท่านั้น)
-                  </p>
                 </form>
               )}
+
             </div>
           </div>
+
         </div>
-      </div>
+      )}
 
-      {/* Shop Holiday Configuration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="shop-holiday-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              📅 กำหนดวันหยุดประจำสัปดาห์ของร้าน
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              กำหนดวันหยุดของร้านตัดผม โดยหากถึงวันดังกล่าว ระบบจะปิดไม่ให้รับคิวจองอัตโนมัติทั้งสาขา
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-6">
-          {holidaysSuccess && (
-            <div className="bg-[#FAF6F0] border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="holiday-save-success-msg">
-              <CheckCircle className="w-4 h-4 text-brand shrink-0" />
-              <span>บันทึกข้อมูลวันหยุดร้านสำเร็จแล้ว!</span>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={handleClearHolidays}
-                className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${
-                  shopHolidays.length === 0
-                    ? 'bg-brand text-white border-brand shadow-sm'
-                    : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
-                }`}
-              >
-                🚫 ไม่มีวันหยุด (เปิดให้บริการทุกวัน)
-              </button>
-            </div>
-
-            <div className="h-px bg-stone-100 my-4"></div>
-
-            <p className="text-xs font-bold text-stone-700">เลือกวันหยุดประจำสัปดาห์ของร้าน (สามารถเลือกได้มากกว่า 1 วัน):</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {DAYS_OF_WEEK.map((day) => {
-                const isSelected = shopHolidays.includes(day.value);
-                return (
-                  <button
-                    key={day.value}
-                    type="button"
-                    onClick={() => handleToggleHoliday(day.value)}
-                    className={`p-3.5 rounded-2xl border text-xs font-bold transition-all flex flex-col items-center justify-center gap-2 cursor-pointer active:scale-95 ${
-                      isSelected
-                        ? 'bg-red-50 border-red-300 text-red-700 shadow-xs ring-2 ring-red-100'
-                        : 'bg-stone-50/50 hover:bg-stone-50 text-stone-850 border-stone-200'
-                    }`}
-                  >
-                    <span className={`w-2.5 h-2.5 rounded-full ${isSelected ? 'bg-red-600 animate-pulse' : 'bg-stone-300'}`}></span>
-                    {day.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Admin PIN Configuration Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="admin-pin-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              🔐 ตั้งค่ารหัสผ่าน PIN สาขา
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              รหัสสำหรับการล็อกหน้าตั้งค่าช่างและข้อมูลหลังบ้านเพื่อความปลอดภัยของกิจการ
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8">
-          <form onSubmit={handleUpdatePinSubmit} className="space-y-4">
-            {pinChangeSuccess && (
-              <div className="bg-[#FAF6F0] border border-brand/30 text-brand-dark px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-fade-in" id="pin-change-success-msg">
-                <CheckCircle className="w-4 h-4 text-brand shrink-0" />
-                <span>บันทึกรหัส PIN ใหม่เรียบร้อยแล้ว! (กรุณาจำรหัสผ่านใหม่นี้ไว้ใช้งาน)</span>
-              </div>
-            )}
-
-            {pinChangeError && (
-              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-shake" id="pin-change-error-msg">
-                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-                <span>{pinChangeError}</span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <input
-                  type="text"
-                  maxLength={12}
-                  id="admin-pin-input"
-                  placeholder="ป้อนรหัสผ่าน"
-                  value={newPinWord}
-                  onChange={(e) => setNewPinWord(e.target.value.replace(/[^0-9]/g, ''))}
-                  className="w-full px-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-mono text-lg font-bold text-stone-900"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                id="save-pin-code-btn"
-                className={`px-6 py-3 rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95 ${
-                  pinChangeSuccess
-                    ? 'bg-green-700 hover:bg-green-800 text-white ring-2 ring-green-150 animate-pulse'
-                    : 'bg-brand hover:bg-brand-dark text-white'
-                }`}
-              >
-                {pinChangeSuccess ? '✅ บันทึก PIN สำเร็จ!' : '💾 บันทึกรหัส PIN ใหม่'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      {/* Settings Grid Card */}
-      <div className="bg-white rounded-3xl border border-stone-105 shadow-sm overflow-hidden" id="barbers-settings-card">
-        
-        {/* Banner */}
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <Scissors className="w-5 h-5 text-brand" /> จัดการช่างตัดผมในร้าน
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              เพิ่มหรือลบรายชื่อช่างหลักของร้าน ช่างเหล่านี้จะปรากฏในตัวเลือกลงคิวและช่างผู้บันทึกสถิติ
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-6">
+      {/* ========================================================= */}
+      {/* SECTION 4: จัดการช่าง & พนักงาน (Barbers, Recorders)        */}
+      {/* ========================================================= */}
+      {isShow('staff') && (
+        <div className="space-y-6 animate-fade-in">
           
-          {/* Form to Add New Barber */}
-          <form onSubmit={handleAdd} className="space-y-4">
-            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider pb-1 border-b border-stone-100">
-              ➕ เพิ่มช่างทำผมใหม่เข้าระบบ
-            </h3>
-
-            {errorMessage && (
-              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-shake" id="add-barber-error">
-                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-                <span>{errorMessage}</span>
+          {/* Barbers Management Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="barbers-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <Scissors className="w-5 h-5 text-brand" /> จัดการช่างตัดผมในร้าน
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  เพิ่มหรือลบรายชื่อช่างหลักของร้าน ช่างเหล่านี้จะปรากฏในตัวเลือกลงคิวและช่างผู้บันทึกสถิติ
+                </p>
               </div>
-            )}
-
-            {successMessage && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-fade-in" id="add-barber-success">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{successMessage}</span>
-              </div>
-            )}
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-stone-400 font-semibold">
-                  ช่าง
-                </span>
-                <input
-                  type="text"
-                  id="add-barber-input"
-                  placeholder=""
-                  value={newHairdresserName}
-                  onChange={(e) => setNewHairdresserName(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-sans font-bold text-stone-900"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                id="add-barber-submit-btn"
-                className="px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95"
-              >
-                <Plus className="w-4 h-4" /> เพิ่มช่าง
-              </button>
-            </div>
-          </form>
-
-          {/* List of Current Barbers */}
-          <div className="space-y-4 pt-4 border-t border-stone-100">
-            <div className="flex justify-between items-center">
-              <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                👤 รายชื่อช่างทำผมปัจจุบัน ({hairdressers.length} ท่าน)
-              </h3>
-              <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md font-medium">
-                รายชื่อคิวจะอิงตามข้อมูลตรงนี้
-              </span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="barbers-list-settings">
-              {hairdressers.length > 0 ? (
-                hairdressers.map((hd) => {
-                  return (
-                    <div
-                      key={hd.id}
-                      id={`barber-setting-row-${hd.id}`}
-                      className="border border-stone-100 bg-stone-50/50 rounded-2xl p-4 flex justify-between items-center gap-3 transition-all hover:bg-white hover:border-stone-200"
-                    >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-stone-950 font-bold text-xs text-white flex items-center justify-center font-mono">
-                          {hd.name.slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className={`font-bold text-sm truncate ${hd.onLeave ? 'text-stone-400 line-through' : 'text-stone-900'}`}>ช่าง{hd.name}</h4>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className={`inline-block w-1.5 h-1.5 rounded-full ${hd.onLeave ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-                            <span className={`text-[10px] font-bold ${hd.onLeave ? 'text-amber-600' : 'text-emerald-705'}`}>
-                              {hd.onLeave ? 'ลางาน/ปิดคิว' : 'ปฏิบัติงานปกติ'}
-                            </span>
+            <div className="p-6 md:p-8 space-y-6">
+              
+              {/* Form to Add New Barber */}
+              <form onSubmit={handleAdd} className="space-y-4">
+                <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider pb-1 border-b border-stone-100">
+                  ➕ เพิ่มช่างทำผมใหม่เข้าระบบ
+                </h3>
+
+                {errorMessage && (
+                  <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-shake" id="add-barber-error">
+                    <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{errorMessage}</span>
+                  </div>
+                )}
+
+                {successMessage && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-fade-in" id="add-barber-success">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{successMessage}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-stone-400 font-semibold">
+                      ช่าง
+                    </span>
+                    <input
+                      type="text"
+                      id="add-barber-input"
+                      placeholder=""
+                      value={newHairdresserName}
+                      onChange={(e) => setNewHairdresserName(e.target.value)}
+                      className="w-full pl-11 pr-4 py-3 text-sm rounded-2xl border border-stone-200 focus:border-brand focus:ring-2 focus:ring-brand/20 outline-none transition-all placeholder:text-stone-400 font-sans font-bold text-stone-900"
+                      required
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    id="add-barber-submit-btn"
+                    className="px-6 py-3 bg-brand hover:bg-brand-dark text-white rounded-2xl text-sm font-semibold transition-all flex items-center justify-center gap-1.5 shadow-sm shrink-0 cursor-pointer active:scale-95"
+                  >
+                    <Plus className="w-4 h-4" /> เพิ่มช่าง
+                  </button>
+                </div>
+              </form>
+
+              {/* List of Current Barbers */}
+              <div className="space-y-4 pt-4 border-t border-stone-100">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                    👤 รายชื่อช่างทำผมปัจจุบัน ({hairdressers.length} ท่าน)
+                  </h3>
+                  <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md font-medium">
+                    รายชื่อคิวจะอิงตามข้อมูลตรงนี้
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="barbers-list-settings">
+                  {hairdressers.length > 0 ? (
+                    hairdressers.map((hd) => {
+                      return (
+                        <div
+                          key={hd.id}
+                          id={`barber-setting-row-${hd.id}`}
+                          className="border border-stone-100 bg-stone-50/50 rounded-2xl p-4 flex justify-between items-center gap-3 transition-all hover:bg-white hover:border-stone-200"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-stone-950 font-bold text-xs text-white flex items-center justify-center font-mono">
+                              {hd.name.slice(0, 2)}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className={`font-bold text-sm truncate ${hd.onLeave ? 'text-stone-400 line-through' : 'text-stone-900'}`}>ช่าง{hd.name}</h4>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className={`inline-block w-1.5 h-1.5 rounded-full ${hd.onLeave ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                                <span className={`text-[10px] font-bold ${hd.onLeave ? 'text-amber-600' : 'text-emerald-705'}`}>
+                                  {hd.onLeave ? 'ลางาน/ปิดคิว' : 'ปฏิบัติงานปกติ'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Deletion control */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
+                              className={`px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
+                                hd.onLeave 
+                                  ? 'bg-amber-100 hover:bg-amber-250 text-amber-800 hover:text-amber-900 border border-amber-200' 
+                                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200/65'
+                              }`}
+                              title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน (จะไม่ปรากฏในแบบฟอร์มจอง)"}
+                            >
+                              {hd.onLeave ? '🔓 เปิดคิว' : '🔕 ปิดคิว/ลางาน'}
+                            </button>
+                            <button
+                              type="button"
+                              id={`barber-delete-trigger-${hd.id}`}
+                              onClick={() => setHairdresserToDelete(hd.id)}
+                              className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                              title="ลบรายชื่อช่างนี้ออก"
+                            >
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            </button>
                           </div>
                         </div>
-                      </div>
-
-                      {/* Deletion control */}
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
-                          className={`px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                            hd.onLeave 
-                              ? 'bg-amber-100 hover:bg-amber-250 text-amber-800 hover:text-amber-900 border border-amber-200' 
-                              : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200/65'
-                          }`}
-                          title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน (จะไม่ปรากฏในแบบฟอร์มจอง)"}
-                        >
-                          {hd.onLeave ? '🔓 เปิดคิว' : '🔕 ปิดคิว/ลางาน'}
-                        </button>
-                        <button
-                          type="button"
-                          id={`barber-delete-trigger-${hd.id}`}
-                          onClick={() => setHairdresserToDelete(hd.id)}
-                          className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
-                          title="ลบรายชื่อช่างนี้ออก"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-1 sm:col-span-2 p-8 border border-dashed border-stone-200 rounded-3xl text-center bg-stone-50" id="no-barbers-settings-view">
+                      <p className="text-xs text-stone-500 font-medium">ยังไม่มีรายชื่อช่างในระบบ</p>
+                      <p className="text-[10px] text-stone-400 mt-1">กรุณาเพิ่มรายชื่อช่างอย่างน้อย 1 คน เพื่อเริ่มใช้งานตัวผู้จองและผู้บันทึกคิว</p>
                     </div>
-                  );
-                })
-              ) : (
-                <div className="col-span-1 sm:col-span-2 p-8 border border-dashed border-stone-200 rounded-3xl text-center bg-stone-50" id="no-barbers-settings-view">
-                  <p className="text-xs text-stone-500 font-medium">ยังไม่มีรายชื่อช่างในระบบ</p>
-                  <p className="text-[10px] text-stone-400 mt-1">กรุณาเพิ่มรายชื่อช่างอย่างน้อย 1 คน เพื่อเริ่มใช้งานตัวผู้จองและผู้บันทึกคิว</p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Guide Section */}
-          <div className="bg-stone-50/80 rounded-2xl p-4 border border-stone-100 flex gap-3 text-xs text-stone-600 leading-relaxed" id="settings-help">
-            <BadgeInfo className="w-5 h-5 text-brand shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-stone-800">คำชี้แจงระบบช่างแบบเชื่อมโยง:</p>
-              <ul className="list-disc pl-4 space-y-1 mt-1 font-light text-[11px]">
-                <li>การลบช่างจากตรงนี้ คิวเก่าที่มีชื่อช่างคนนี้จะยังแสดงชื่อเดิมตามปกติ (สืบทอดข้อมูลไว้ให้อ้างอิงปลอดภัย)</li>
-                <li>ช่างในร้านทุกคนจะปรากฏเป็นตัวเลือกในช่องผู้ลงคิวจองและช่องผู้บันทึกคิวอัตโนมัติ</li>
-              </ul>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      {/* Non-Barber Staff Recorders Management Card */}
-      <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="recorders-settings-card">
-        <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
-          <div>
-            <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
-              <UserCheck className="w-5 h-5 text-brand" /> จัดการรายชื่อผู้บันทึกคิว (เจ้าของร้าน / Reception / แคชเชียร์)
-            </h2>
-            <p className="text-stone-400 text-xs mt-1 font-light">
-              เพิ่มรายชื่อพนักงานหน้าร้านหรือเจ้าของร้านที่ไม่ใช่ช่างตัดผม เพื่อให้สามารถเลือกเป็น "ผู้บันทึกคิว" ในแบบฟอร์มจองคิวได้
-            </p>
-          </div>
-        </div>
-
-        <div className="p-6 md:p-8 space-y-6">
-          <form onSubmit={handleAddRecorderSubmit} className="space-y-4">
-            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider pb-1 border-b border-stone-100">
-              ➕ เพิ่มรายชื่อผู้บันทึกคิวใหม่ (พนักงานต้อนรับ / เจ้าของร้าน)
-            </h3>
-
-            {recorderError && (
-              <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-shake" id="add-recorder-error">
-                <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
-                <span>{recorderError}</span>
-              </div>
-            )}
-
-            {recorderSuccess && (
-              <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-fade-in" id="add-recorder-success">
-                <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{recorderSuccess}</span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-1">
-                <label className="block text-[11px] font-bold text-stone-600 mb-1">ตำแหน่ง / บทบาท</label>
-                <select
-                  value={newRecorderRole}
-                  onChange={(e) => setNewRecorderRole(e.target.value)}
-                  className="w-full px-3 py-3 text-xs rounded-2xl border border-stone-200 bg-stone-50 font-bold text-stone-800 outline-none focus:border-brand"
-                >
-                  <option value="เจ้าของร้าน">👑 เจ้าของร้าน</option>
-                  <option value="พนักงานต้อนรับ">🛎️ พนักงานต้อนรับ (Reception)</option>
-                  <option value="แคชเชียร์">💵 แคชเชียร์</option>
-                  <option value="ผู้จัดการร้าน">👔 ผู้จัดการร้าน</option>
-                  <option value="พนักงาน">👤 พนักงานทั่วไป</option>
-                </select>
               </div>
 
-              <div className="sm:col-span-2 flex gap-2 items-end">
-                <div className="flex-1">
-                  <label className="block text-[11px] font-bold text-stone-600 mb-1">ชื่อผู้บันทึก</label>
-                  <input
-                    type="text"
-                    placeholder="ป้อนชื่อผู้บันทึก (เช่น คุณดาว, Reception 1)"
-                    value={newRecorderName}
-                    onChange={(e) => setNewRecorderName(e.target.value)}
-                    className="w-full px-4 py-3 text-xs rounded-2xl border border-stone-200 focus:border-brand outline-none font-bold text-stone-900"
-                    required
-                  />
+              {/* Guide Section */}
+              <div className="bg-stone-50/80 rounded-2xl p-4 border border-stone-100 flex gap-3 text-xs text-stone-600 leading-relaxed" id="settings-help">
+                <BadgeInfo className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-stone-800">คำชี้แจงระบบช่างแบบเชื่อมโยง:</p>
+                  <ul className="list-disc pl-4 space-y-1 mt-1 font-light text-[11px]">
+                    <li>การลบช่างจากตรงนี้ คิวเก่าที่มีชื่อช่างคนนี้จะยังแสดงชื่อเดิมตามปกติ (สืบทอดข้อมูลไว้ให้อ้างอิงปลอดภัย)</li>
+                    <li>ช่างในร้านทุกคนจะปรากฏเป็นตัวเลือกในช่องผู้ลงคิวจองและช่องผู้บันทึกคิวอัตโนมัติ</li>
+                  </ul>
                 </div>
-                <button
-                  type="submit"
-                  className="px-5 py-3 bg-brand hover:bg-brand-dark text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 shadow-sm"
-                >
-                  <Plus className="w-4 h-4" /> เพิ่มผู้บันทึก
-                </button>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Non-Barber Staff Recorders Management Card */}
+          <div className="bg-white rounded-3xl border border-stone-200 shadow-sm overflow-hidden" id="recorders-settings-card">
+            <div className="bg-stone-earth px-6 py-5 text-white flex justify-between items-center border-b border-brand/20">
+              <div>
+                <h2 className="text-xl font-serif font-bold tracking-tight text-brand-light flex items-center gap-2">
+                  <UserCheck className="w-5 h-5 text-brand" /> จัดการรายชื่อผู้บันทึกคิว (เจ้าของร้าน / Reception / แคชเชียร์)
+                </h2>
+                <p className="text-stone-400 text-xs mt-1 font-light">
+                  เพิ่มรายชื่อพนักงานหน้าร้านหรือเจ้าของร้านที่ไม่ใช่ช่างตัดผม เพื่อให้สามารถเลือกเป็น "ผู้บันทึกคิว" ในแบบฟอร์มจองคิวได้
+                </p>
               </div>
             </div>
-          </form>
 
-          {/* Current Recorders List */}
-          <div className="space-y-3 pt-4 border-t border-stone-100">
-            <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-              📋 รายชื่อผู้บันทึกหน้าร้านปัจจุบัน ({recorders.length} ท่าน)
-            </h3>
+            <div className="p-6 md:p-8 space-y-6">
+              <form onSubmit={handleAddRecorderSubmit} className="space-y-4">
+                <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider pb-1 border-b border-stone-100">
+                  ➕ เพิ่มรายชื่อผู้บันทึกคิวใหม่ (พนักงานต้อนรับ / เจ้าของร้าน)
+                </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="recorders-list-settings">
-              {recorders.length > 0 ? (
-                recorders.map((rec) => {
-                  return (
-                    <div
-                      key={rec.id}
-                      className="border border-stone-200/80 bg-stone-50/60 rounded-2xl p-3.5 flex justify-between items-center gap-3 hover:bg-white transition-all"
+                {recorderError && (
+                  <div className="bg-red-50 border border-red-200 text-red-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-shake" id="add-recorder-error">
+                    <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+                    <span>{recorderError}</span>
+                  </div>
+                )}
+
+                {recorderSuccess && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-900 px-4 py-3 rounded-2xl text-xs font-medium flex items-center gap-2 animate-fade-in" id="add-recorder-success">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{recorderSuccess}</span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-1">
+                    <label className="block text-[11px] font-bold text-stone-600 mb-1">ตำแหน่ง / บทบาท</label>
+                    <select
+                      value={newRecorderRole}
+                      onChange={(e) => setNewRecorderRole(e.target.value)}
+                      className="w-full px-3 py-3 text-xs rounded-2xl border border-stone-200 bg-stone-50 font-bold text-stone-800 outline-none focus:border-brand"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-brand/10 border border-brand/30 text-brand font-bold text-xs flex items-center justify-center shrink-0">
-                          {rec.name.slice(0, 2)}
-                        </div>
-                        <div className="min-w-0">
-                          <h4 className="font-bold text-xs text-stone-900 truncate">{rec.name}</h4>
-                          <span className="inline-block text-[10px] font-semibold text-stone-500 bg-stone-200/70 px-2 py-0.5 rounded-md mt-0.5">
-                            {rec.role || 'พนักงาน'}
-                          </span>
-                        </div>
-                      </div>
+                      <option value="เจ้าของร้าน">👑 เจ้าของร้าน</option>
+                      <option value="พนักงานต้อนรับ">🛎️ พนักงานต้อนรับ (Reception)</option>
+                      <option value="แคชเชียร์">💵 แคชเชียร์</option>
+                      <option value="ผู้จัดการร้าน">👔 ผู้จัดการร้าน</option>
+                      <option value="พนักงาน">👤 พนักงานทั่วไป</option>
+                    </select>
+                  </div>
 
-                      <button
-                        type="button"
-                        id={`recorder-delete-trigger-${rec.id}`}
-                        onClick={() => setRecorderToDelete(rec.id)}
-                        className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shrink-0"
-                        title="ลบรายชื่อผู้บันทึกนี้"
-                      >
-                        <Trash2 className="w-4 h-4 text-red-500" />
-                      </button>
+                  <div className="sm:col-span-2 flex gap-2 items-end">
+                    <div className="flex-1">
+                      <label className="block text-[11px] font-bold text-stone-600 mb-1">ชื่อผู้บันทึก</label>
+                      <input
+                        type="text"
+                        placeholder="ป้อนชื่อผู้บันทึก (เช่น คุณดาว, Reception 1)"
+                        value={newRecorderName}
+                        onChange={(e) => setNewRecorderName(e.target.value)}
+                        className="w-full px-4 py-3 text-xs rounded-2xl border border-stone-200 focus:border-brand outline-none font-bold text-stone-900"
+                        required
+                      />
                     </div>
-                  );
-                })
-              ) : (
-                <div className="col-span-1 sm:col-span-2 p-6 border border-dashed border-stone-200 rounded-2xl text-center bg-stone-50">
-                  <p className="text-xs text-stone-500 font-medium">ยังไม่มีผู้บันทึกประเภทพนักงานต้อนรับ/เจ้าของร้าน</p>
-                  <p className="text-[10px] text-stone-400 mt-1">ช่างทำผมทุกคนสามารถเลือกเป็นผู้บันทึกคิวได้อยู่แล้ว หรือเพิ่มชื่อเจ้าของร้านตรงนี้ได้เลย</p>
+                    <button
+                      type="submit"
+                      className="px-5 py-3 bg-brand hover:bg-brand-dark text-white rounded-2xl text-xs font-bold transition-all flex items-center gap-1 shrink-0 cursor-pointer active:scale-95 shadow-sm"
+                    >
+                      <Plus className="w-4 h-4" /> เพิ่มผู้บันทึก
+                    </button>
+                  </div>
                 </div>
-              )}
+              </form>
+
+              {/* Current Recorders List */}
+              <div className="space-y-3 pt-4 border-t border-stone-100">
+                <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
+                  📋 รายชื่อผู้บันทึกหน้าร้านปัจจุบัน ({recorders.length} ท่าน)
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="recorders-list-settings">
+                  {recorders.length > 0 ? (
+                    recorders.map((rec) => {
+                      return (
+                        <div
+                          key={rec.id}
+                          className="border border-stone-200/80 bg-stone-50/60 rounded-2xl p-3.5 flex justify-between items-center gap-3 hover:bg-white transition-all"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-full bg-brand/10 border border-brand/30 text-brand font-bold text-xs flex items-center justify-center shrink-0">
+                              {rec.name.slice(0, 2)}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-xs text-stone-900 truncate">{rec.name}</h4>
+                              <span className="inline-block text-[10px] font-semibold text-stone-500 bg-stone-200/70 px-2 py-0.5 rounded-md mt-0.5">
+                                {rec.role || 'พนักงาน'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            id={`recorder-delete-trigger-${rec.id}`}
+                            onClick={() => setRecorderToDelete(rec.id)}
+                            className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shrink-0"
+                            title="ลบรายชื่อผู้บันทึกนี้"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-500" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-span-1 sm:col-span-2 p-6 border border-dashed border-stone-200 rounded-2xl text-center bg-stone-50">
+                      <p className="text-xs text-stone-500 font-medium">ยังไม่มีผู้บันทึกประเภทพนักงานต้อนรับ/เจ้าของร้าน</p>
+                      <p className="text-[10px] text-stone-400 mt-1">ช่างทำผมทุกคนสามารถเลือกเป็นผู้บันทึกคิวได้อยู่แล้ว หรือเพิ่มชื่อเจ้าของร้านตรงนี้ได้เลย</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODALS: Delete Confirmation Modals                        */}
+      {/* ========================================================= */}
+
+      {/* Service Delete Confirmation Popup Modal */}
+      {deletingService && (
+        <div className="fixed inset-0 bg-stone-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-stone-200 space-y-4 text-center">
+            <div className="w-14 h-14 bg-red-100 rounded-2xl border border-red-200 flex items-center justify-center text-red-600 mx-auto shadow-inner">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-serif font-black text-stone-900">ยืนยันการลบบริการ</h3>
+              <p className="text-xs text-stone-600 mt-1.5 leading-relaxed">
+                คุณต้องการลบบริการ <span className="font-extrabold text-stone-900 bg-stone-100 px-1.5 py-0.5 rounded">"{deletingService.name}"</span> ออกจากระบบใช่หรือไม่?
+              </p>
+              <p className="text-[11px] text-red-500 font-bold mt-1">
+                ⚠️ ข้อมูลบริการนี้จะถูกลบถาวร
+              </p>
+            </div>
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeletingService(null)}
+                className="flex-1 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteService(deletingService.id);
+                  setDeletingService(null);
+                  setServiceSuccess('ลบบริการเรียบร้อยแล้ว!');
+                  setTimeout(() => setServiceSuccess(null), 3000);
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                ยืนยันลบบริการ
+              </button>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Confirmation Modal for Hairdresser Deletion */}
       {(() => {
