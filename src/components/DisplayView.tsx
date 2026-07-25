@@ -15,6 +15,7 @@ interface DisplayViewProps {
   shopLogoUrl?: string;
   shopOpenTime?: string;
   shopCloseTime?: string;
+  isCloudOnline?: boolean;
 }
 
 export default function DisplayView({
@@ -23,7 +24,8 @@ export default function DisplayView({
   shopName,
   shopLogoUrl,
   shopOpenTime = '10:00',
-  shopCloseTime = '21:00'
+  shopCloseTime = '21:00',
+  isCloudOnline = true
 }: DisplayViewProps) {
   // Live time state
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -48,7 +50,7 @@ export default function DisplayView({
   const [showEnergyModal, setShowEnergyModal] = useState<boolean>(false);
 
   // Cute Font style state for Queue Display Screen
-  const [fontStyle, setFontStyle] = useState<'cute' | 'rounded' | 'modern'>('cute');
+  const [fontStyle, setFontStyle] = useState<'cute' | 'rounded' | 'modern' | 'itim'>('cute');
 
   // Update clock every second
   useEffect(() => {
@@ -56,6 +58,35 @@ export default function DisplayView({
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  // Continuous Screen Wake Lock to prevent TV Display / Tablet from sleeping
+  useEffect(() => {
+    let wakeLockObj: any = null;
+    const requestWakeLock = async () => {
+      if (typeof navigator !== 'undefined' && 'wakeLock' in navigator && (navigator as any).wakeLock) {
+        try {
+          wakeLockObj = await (navigator as any).wakeLock.request('screen');
+        } catch (err) {
+          console.warn('Screen Wake Lock request notice:', err);
+        }
+      }
+    };
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLockObj) {
+        wakeLockObj.release().catch(() => {});
+      }
+    };
   }, []);
 
   // Track queue updates dynamically to trigger TV animation on newly updated queue items
@@ -305,7 +336,9 @@ export default function DisplayView({
       ? 'font-cute' 
       : fontStyle === 'rounded' 
         ? 'font-rounded-cute' 
-        : 'font-modern-cute';
+        : fontStyle === 'itim'
+          ? 'font-itim-cute'
+          : 'font-modern-cute';
 
   return (
     <div 
@@ -398,6 +431,19 @@ export default function DisplayView({
                 }`}>
                   TV DISPLAY BOARD
                 </span>
+
+                {/* Live Real-time Connection Status Indicator Badge */}
+                {isCloudOnline ? (
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center gap-1.5 shadow-xs">
+                    <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+                    <span>LIVE SYNC (คลาวด์เชื่อมต่อสด)</span>
+                  </span>
+                ) : (
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-black bg-amber-500/25 text-amber-300 border border-amber-500/60 flex items-center gap-1.5 animate-pulse shadow-xs">
+                    <RotateCw className="w-3 h-3 text-amber-300 animate-spin" />
+                    <span>🔄 กำลังเชื่อมต่อสัญญาณคลาวด์ใหม่...</span>
+                  </span>
+                )}
 
                 {/* Eco Saver Badge when dark or oled or dimmed */}
                 {(isDark || ecoDimLevel > 0 || warmFilter) && (
@@ -636,7 +682,7 @@ export default function DisplayView({
               <select
                 id="display-font-select"
                 value={fontStyle}
-                onChange={(e) => setFontStyle(e.target.value as 'cute' | 'rounded' | 'modern')}
+                onChange={(e) => setFontStyle(e.target.value as 'cute' | 'rounded' | 'modern' | 'itim')}
                 className={`border rounded-xl px-3 py-1.5 text-xs font-bold outline-none cursor-pointer ${
                   isDark 
                     ? 'bg-stone-800 border-amber-500/50 text-amber-300 focus:border-amber-400' 
@@ -646,6 +692,7 @@ export default function DisplayView({
                 <option value="cute">✨ Prompt (ตัวใหญ่ คมชัด)</option>
                 <option value="rounded">🌸 Mitr (ตัวกลมละมุน)</option>
                 <option value="modern">⚡ Kanit (หัวมนเด่นชัด)</option>
+                <option value="itim">🎨 Itim (ตัวเขียนลายมือคิ้วท์ๆ)</option>
               </select>
             </div>
 

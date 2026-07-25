@@ -31,17 +31,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ensure font family classes use readable Thai fallbacks */
-.font-cute {
-  font-family: 'Prompt', 'Mitr', 'Fredoka', 'Quicksand', sans-serif;
+/* Ensure font family classes render distinct Google Thai fonts */
+.font-cute,
+.font-cute *:not(.font-mono) {
+  font-family: 'Prompt', 'Sarabun', system-ui, sans-serif !important;
 }
 
-.font-rounded-cute {
-  font-family: 'Prompt', 'Quicksand', 'Mitr', 'Kanit', sans-serif;
+.font-rounded-cute,
+.font-rounded-cute *:not(.font-mono) {
+  font-family: 'Mitr', 'Prompt', system-ui, sans-serif !important;
 }
 
-.font-modern-cute {
-  font-family: 'Prompt', 'Plus Jakarta Sans', 'Kanit', sans-serif;
+.font-modern-cute,
+.font-modern-cute *:not(.font-mono) {
+  font-family: 'Kanit', 'Prompt', system-ui, sans-serif !important;
+}
+
+.font-itim-cute,
+.font-itim-cute *:not(.font-mono) {
+  font-family: 'Itim', 'Mitr', 'Prompt', cursive, sans-serif !important;
 }
 
 input, select, textarea, button {

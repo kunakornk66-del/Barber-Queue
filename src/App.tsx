@@ -384,6 +384,35 @@ export default function App() {
 
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [firestoreError, setFirestoreError] = useState<string | null>(null);
+  const [syncRetryKey, setSyncRetryKey] = useState<number>(0);
+  const [isCloudOnline, setIsCloudOnline] = useState<boolean>(true);
+
+  // Global browser network reconnect & tab visibility sync listener
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsCloudOnline(true);
+      setSyncRetryKey(k => k + 1);
+    };
+    const handleOffline = () => {
+      setIsCloudOnline(false);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setIsCloudOnline(navigator.onLine);
+        setSyncRetryKey(k => k + 1);
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
 
   const getShareUrl = () => {
     let origin = window.location.origin;
@@ -539,7 +568,9 @@ export default function App() {
     }
 
     const settingRef = doc(db, 'stores', activeShopEmail, 'settings', 'config');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(settingRef, (snapshot) => {
+      setIsCloudOnline(true);
       if (snapshot.exists()) {
         const data = snapshot.data();
         if (data) {
@@ -626,10 +657,15 @@ export default function App() {
         }
       }
     }, (error) => {
-      console.warn("Loading configuration fallback default BARBER PRO:", error);
+      console.warn("Loading configuration snapshot error, scheduling auto-retry:", error);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   // Firestore listener for Shop Services
   useEffect(() => {
@@ -649,7 +685,9 @@ export default function App() {
     }
 
     const servicesRef = collection(db, 'stores', activeShopEmail, 'services');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(servicesRef, (snapshot) => {
+      setIsCloudOnline(true);
       if (snapshot.empty) {
         setServices([]);
         localStorage.setItem(localKey, JSON.stringify([]));
@@ -663,10 +701,15 @@ export default function App() {
       setServices(loaded);
       localStorage.setItem(localKey, JSON.stringify(loaded));
     }, (error) => {
-      console.warn("Loading services error:", error);
+      console.warn("Loading services error, scheduling auto-retry:", error);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   const handleToggleSelfBooking = async (enabled: boolean) => {
     setEnableSelfBooking(enabled);
@@ -853,7 +896,9 @@ export default function App() {
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'hairdressers');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      setIsCloudOnline(true);
       if (snapshot.empty) {
         setHairdressers([]);
         localStorage.setItem(localKey, JSON.stringify([]));
@@ -869,10 +914,15 @@ export default function App() {
       setFirestoreError(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/hairdressers`, false);
-      console.warn("Using offline hairdressers backup:", error);
+      console.warn("Using offline hairdressers backup, scheduling auto-retry:", error);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   // Real-time Recorders list (Non-barber staff like receptionists or owners) from Firestore
   useEffect(() => {
@@ -892,7 +942,9 @@ export default function App() {
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'recorders');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      setIsCloudOnline(true);
       if (snapshot.empty) {
         setRecorders([]);
         localStorage.setItem(localKey, JSON.stringify([]));
@@ -908,10 +960,15 @@ export default function App() {
       setFirestoreError(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/recorders`, false);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
 
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   const handleAddRecorder = async (name: string, role: string = 'พนักงานต้อนรับ') => {
     if (!activeShopEmail || !name.trim()) return;
@@ -986,7 +1043,9 @@ export default function App() {
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'bookings');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      setIsCloudOnline(true);
       // Check for newly added documents after initial load
       if (!isInitialBookingsLoadRef.current) {
         snapshot.docChanges().forEach((change) => {
@@ -1021,10 +1080,15 @@ export default function App() {
       setFirestoreError(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/bookings`, false);
-      console.warn("Using offline bookings backup:", error);
+      console.warn("Using offline bookings backup, scheduling auto-retry:", error);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   // 5. Real-time Leaves / Closed Queues list from Firestore collection
   useEffect(() => {
@@ -1042,7 +1106,9 @@ export default function App() {
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'leaves');
+    let retryTimer: any = null;
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
+      setIsCloudOnline(true);
       const todayStr = getTodayDateString();
       const activeLeaves: LeaveRecord[] = [];
       snapshot.forEach((docSnap) => {
@@ -1067,10 +1133,15 @@ export default function App() {
       setFirestoreError(null);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, `stores/${activeShopEmail}/leaves`, false);
-      console.warn("Using offline leaves backup:", error);
+      console.warn("Using offline leaves backup, scheduling auto-retry:", error);
+      setIsCloudOnline(false);
+      retryTimer = setTimeout(() => setSyncRetryKey(k => k + 1), 4000);
     });
-    return () => unsubscribe();
-  }, [activeShopEmail]);
+    return () => {
+      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [activeShopEmail, syncRetryKey]);
 
   // 6. Reset hairdresser busy status on new day transition or startup if stale
   useEffect(() => {
@@ -1721,6 +1792,7 @@ export default function App() {
           shopLogoUrl={shopLogoUrl}
           shopOpenTime={shopOpenTime}
           shopCloseTime={shopCloseTime}
+          isCloudOnline={isCloudOnline}
         />
       </div>
     );
@@ -2425,6 +2497,7 @@ export default function App() {
               shopLogoUrl={shopLogoUrl}
               shopOpenTime={shopOpenTime}
               shopCloseTime={shopCloseTime}
+              isCloudOnline={isCloudOnline}
             />
           </div>
         )}
