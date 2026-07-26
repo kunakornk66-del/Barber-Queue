@@ -39,9 +39,10 @@ const PRESET_LOGOS = [
 
 interface SettingsProps {
   hairdressers: Hairdresser[];
-  onAddHairdresser: (name: string) => void;
+  onAddHairdresser: (name: string, avatarUrl?: string) => void;
   onDeleteHairdresser: (id: string) => void;
   onToggleHairdresserLeave: (id: string, currentlyLeave: boolean) => void;
+  onUpdateHairdresserAvatar?: (id: string, avatarUrl: string) => void;
   recorders: StaffRecorder[];
   onAddRecorder: (name: string, role?: string) => void;
   onDeleteRecorder: (id: string) => void;
@@ -87,6 +88,7 @@ export default function Settings({
   onAddHairdresser,
   onDeleteHairdresser,
   onToggleHairdresserLeave,
+  onUpdateHairdresserAvatar,
   recorders,
   onAddRecorder,
   onDeleteRecorder,
@@ -125,9 +127,65 @@ export default function Settings({
   const [activeSettingTab, setActiveSettingTab] = useState<'info' | 'hours' | 'payment' | 'staff' | 'all'>('info');
 
   const [newHairdresserName, setNewHairdresserName] = useState('');
+  const [newHairdresserAvatar, setNewHairdresserAvatar] = useState('');
+  const [editingAvatarId, setEditingAvatarId] = useState<string | null>(null);
+  const [avatarUrlInput, setAvatarUrlInput] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [hairdresserToDelete, setHairdresserToDelete] = useState<string | null>(null);
+
+  const handleBarberPhotoUpload = (e: ChangeEvent<HTMLInputElement>, targetHdId?: string) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('กรุณาเลือกไฟล์รูปภาพที่ถูกต้อง (.jpg, .png, .webp)');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_SIZE = 300;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_SIZE) {
+            height *= MAX_SIZE / width;
+            width = MAX_SIZE;
+          }
+        } else {
+          if (height > MAX_SIZE) {
+            width *= MAX_SIZE / height;
+            height = MAX_SIZE;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const base64 = canvas.toDataURL('image/jpeg', 0.85);
+          if (targetHdId) {
+            if (onUpdateHairdresserAvatar) {
+              onUpdateHairdresserAvatar(targetHdId, base64);
+              setSuccessMessage('บันทึกรูปโปรไฟล์ช่างเรียบร้อยแล้ว!');
+              setTimeout(() => setSuccessMessage(null), 3000);
+            }
+          } else {
+            setNewHairdresserAvatar(base64);
+          }
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Recorders (Non-barber staff like receptionists, cashiers, owners) settings states
   const [newRecorderName, setNewRecorderName] = useState('');
@@ -434,8 +492,9 @@ export default function Settings({
       return;
     }
 
-    onAddHairdresser(nameTrimed);
+    onAddHairdresser(nameTrimed, newHairdresserAvatar || undefined);
     setNewHairdresserName('');
+    setNewHairdresserAvatar('');
     setSuccessMessage(`เพิ่ม "ช่าง${nameTrimed}" เรียบร้อยแล้ว`);
     triggerMascotPopup(`ต้อนรับช่างใหม่! เพิ่ม "ช่าง${nameTrimed}" เรียบร้อยแล้วงับ ✂️🐱`, 'เพิ่มช่างสำเร็จ!', 'cheering');
 
@@ -1771,49 +1830,107 @@ export default function Settings({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="barbers-list-settings">
                   {hairdressers.length > 0 ? (
                     hairdressers.map((hd) => {
+                      const initial = hd.name ? hd.name.charAt(0) : '?';
+                      const charCodeSum = hd.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                      const bgColors = [
+                        'bg-amber-800 text-amber-100',
+                        'bg-stone-800 text-stone-100',
+                        'bg-emerald-800 text-emerald-100',
+                        'bg-indigo-800 text-indigo-100',
+                        'bg-rose-800 text-rose-100',
+                        'bg-cyan-800 text-cyan-100'
+                      ];
+                      const avatarBg = bgColors[charCodeSum % bgColors.length];
+
                       return (
                         <div
                           key={hd.id}
                           id={`barber-setting-row-${hd.id}`}
-                          className="border border-stone-100 bg-stone-50/50 rounded-2xl p-4 flex justify-between items-center gap-3 transition-all hover:bg-white hover:border-stone-200"
+                          className="border border-stone-200/90 bg-white rounded-2xl p-4 shadow-2xs hover:border-amber-400 transition-all flex flex-col justify-between gap-3"
                         >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div className="w-9 h-9 rounded-full bg-stone-950 font-bold text-xs text-white flex items-center justify-center font-mono">
-                              {hd.name.slice(0, 2)}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className={`font-bold text-sm truncate ${hd.onLeave ? 'text-stone-400 line-through' : 'text-stone-900'}`}>ช่าง{hd.name}</h4>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className={`inline-block w-1.5 h-1.5 rounded-full ${hd.onLeave ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-                                <span className={`text-[10px] font-bold ${hd.onLeave ? 'text-amber-600' : 'text-emerald-705'}`}>
-                                  {hd.onLeave ? 'ลางาน/ปิดคิว' : 'ปฏิบัติงานปกติ'}
-                                </span>
+                          {/* Top Info Section */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="relative group shrink-0">
+                                {hd.avatarUrl ? (
+                                  <img
+                                    src={hd.avatarUrl}
+                                    alt={hd.name}
+                                    className="w-12 h-12 rounded-full object-cover border-2 border-amber-500 shadow-xs"
+                                  />
+                                ) : (
+                                  <div className={`w-12 h-12 rounded-full ${avatarBg} font-black text-base flex items-center justify-center border-2 border-stone-200 shadow-xs`}>
+                                    {initial}
+                                  </div>
+                                )}
+
+                                {/* File input overlay on hover */}
+                                <label
+                                  htmlFor={`avatar-upload-${hd.id}`}
+                                  className="absolute inset-0 rounded-full bg-black/40 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-xs font-bold"
+                                  title="เปลี่ยนรูปโปรไฟล์"
+                                >
+                                  📷
+                                </label>
+                                <input
+                                  type="file"
+                                  id={`avatar-upload-${hd.id}`}
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handleBarberPhotoUpload(e, hd.id)}
+                                />
+                              </div>
+
+                              <div className="min-w-0 space-y-1">
+                                <h4 className={`font-bold text-sm sm:text-base leading-snug break-words ${hd.onLeave ? 'text-stone-400 line-through' : 'text-stone-900'}`}>
+                                  ช่าง{hd.name}
+                                </h4>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${hd.onLeave ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`}></span>
+                                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                                    hd.onLeave ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  }`}>
+                                    {hd.onLeave ? 'ลางาน / ปิดรับคิว' : 'ปฏิบัติงานปกติ'}
+                                  </span>
+                                </div>
                               </div>
                             </div>
-                          </div>
 
-                          {/* Deletion control */}
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
-                              className={`px-3 py-1.5 text-[10px] font-bold rounded-xl transition-all cursor-pointer ${
-                                hd.onLeave 
-                                  ? 'bg-amber-100 hover:bg-amber-250 text-amber-800 hover:text-amber-900 border border-amber-200' 
-                                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200/65'
-                              }`}
-                              title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน (จะไม่ปรากฏในแบบฟอร์มจอง)"}
-                            >
-                              {hd.onLeave ? '🔓 เปิดคิว' : '🔕 ปิดคิว/ลางาน'}
-                            </button>
+                            {/* Delete Button at Top Right */}
                             <button
                               type="button"
                               id={`barber-delete-trigger-${hd.id}`}
                               onClick={() => setHairdresserToDelete(hd.id)}
-                              className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer"
+                              className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shrink-0"
                               title="ลบรายชื่อช่างนี้ออก"
                             >
-                              <Trash2 className="w-4 h-4 text-red-500" />
+                              <Trash2 className="w-4 h-4 text-stone-400 hover:text-red-500" />
+                            </button>
+                          </div>
+
+                          {/* Bottom Action Controls */}
+                          <div className="pt-2.5 border-t border-stone-100 flex items-center gap-2">
+                            <label
+                              htmlFor={`avatar-upload-${hd.id}`}
+                              className="flex-1 py-2 px-2.5 text-xs font-bold rounded-xl bg-stone-50 hover:bg-stone-100 text-stone-700 border border-stone-200 cursor-pointer transition-all flex items-center justify-center gap-1.5 active:scale-95"
+                              title="อัปโหลด/เปลี่ยนรูปโปรไฟล์ช่าง"
+                            >
+                              <span>📷</span>
+                              <span>{hd.avatarUrl ? 'เปลี่ยนรูป' : 'ใส่รูปโปรไฟล์'}</span>
+                            </label>
+
+                            <button
+                              type="button"
+                              onClick={() => onToggleHairdresserLeave(hd.id, !!hd.onLeave)}
+                              className={`flex-1 py-2 px-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 ${
+                                hd.onLeave 
+                                  ? 'bg-amber-500 hover:bg-amber-600 text-stone-950 font-extrabold shadow-xs' 
+                                  : 'bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200'
+                              }`}
+                              title={hd.onLeave ? "เปิดรับคิวจองช่างคนนี้" : "ตั้งค่าปิดคิว/ลางาน"}
+                            >
+                              <span>{hd.onLeave ? '🔓' : '🔕'}</span>
+                              <span>{hd.onLeave ? 'เปิดรับคิว' : 'ปิดคิว/ลางาน'}</span>
                             </button>
                           </div>
                         </div>

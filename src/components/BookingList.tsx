@@ -81,6 +81,8 @@ export default function BookingList({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDateFilter, setSelectedDateFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'>('all');
+  const [sortBy, setSortBy] = useState<'time' | 'hairdresser'>('time');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(new Date());
 
@@ -405,17 +407,40 @@ export default function BookingList({
         return false;
       }
 
+      // 3. Status Filter
+      if (selectedStatusFilter !== 'all') {
+        const status = booking.status || 'waiting';
+        if (status !== selectedStatusFilter) return false;
+      }
+
       return true;
     })
-    // Sort logically: date ascending, then startTime ascending
+    // Sort logically: date ascending, then startTime based on sortOrder
     .sort((a, b) => {
       if (a.date !== b.date) {
         return a.date.localeCompare(b.date);
       }
-      return a.startTime.localeCompare(b.startTime);
+      const timeCompare = a.startTime.localeCompare(b.startTime);
+      return sortOrder === 'asc' ? timeCompare : -timeCompare;
     });
 
-  // Group bookings by date, then by hairdresser
+  // Grouping 1: By Date only (for Time-Sorted view)
+  interface DateGroupTime {
+    date: string;
+    bookings: Booking[];
+  }
+
+  const timeGroupedBookings: DateGroupTime[] = [];
+  filteredBookings.forEach((booking) => {
+    let dateGroup = timeGroupedBookings.find((g) => g.date === booking.date);
+    if (!dateGroup) {
+      dateGroup = { date: booking.date, bookings: [] };
+      timeGroupedBookings.push(dateGroup);
+    }
+    dateGroup.bookings.push(booking);
+  });
+
+  // Grouping 2: By Date, then Hairdresser (for Hairdresser-Grouped view)
   interface GroupedByHairdresser {
     hairdresserId: string | null;
     hairdresserName: string;
@@ -459,29 +484,10 @@ export default function BookingList({
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       
-      {/* Information Prune Banner */}
-      <div className="bg-brand-light border border-brand/20 rounded-3xl p-5 shadow-xs flex flex-col md:flex-row gap-4 items-start md:items-center justify-between" id="prune-notice-banner">
-            <div className="flex gap-3.5 items-start">
-              <div className="w-10 h-10 rounded-2xl bg-brand/10 flex items-center justify-center text-brand shrink-0 mt-0.5 md:mt-0">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2 font-serif">
-                  🧹 ระบบล้างประวัติอัจฉริยะ (Auto-Clean)
-                </h3>
-                <p className="text-xs text-stone-600 mt-1 leading-relaxed">
-                  หน้านี้จะเคลียร์ประวัติทิ้งทุกวันที่พ้นวันโดยอัตโนมัติ จะไม่มีข้อมูลของวันที่ผ่านมาเหลืออยู่ในระบบ เพื่อความรวดเร็วและเป็นส่วนตัวของทางร้าน
-                </p>
-              </div>
-            </div>
-            <div className="self-stretch md:self-auto flex items-center bg-white px-3 py-1.5 rounded-2xl border border-brand/30 text-[11px] text-brand-dark font-bold shrink-0 shadow-xs justify-center gap-1">
-              <span>สถานะ: ล้างประวัติล่วงลับแล้ววันนี้</span>
-            </div>
-          </div>
 
-      {/* Control panel: search + date filter + status filter */}
+      {/* Control panel: search + date filter + sort toggle + status filter */}
       <div className="bg-white p-4 sm:p-5 rounded-3xl border border-stone-200 shadow-sm flex flex-col gap-4" id="booking-controls">
-        <div className="flex flex-col sm:flex-row gap-4 items-stretch justify-between">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch justify-between">
           {/* Search Input bar */}
           <div className="relative flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
@@ -516,6 +522,88 @@ export default function BookingList({
                   }`}
                 >
                   {labels[filter]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Row 2: Sort Toggle & Status Filter */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-3 border-t border-stone-100 text-xs">
+          {/* Sort Toggle Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-stone-700 text-xs shrink-0 flex items-center gap-1">
+              <span>จัดเรียงตาม:</span>
+            </span>
+            <div className="flex bg-stone-100 p-1 rounded-2xl border border-stone-200/50 gap-1" id="sort-toggle-segments">
+              <button
+                type="button"
+                id="sort-by-time-btn"
+                onClick={() => setSortBy('time')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                  sortBy === 'time'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+                title="เรียงตามช่วงเวลาจอง (เร็วที่สุด -> ช้าที่สุด)"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>เวลาจอง (เร็วไปช้า)</span>
+              </button>
+
+              <button
+                type="button"
+                id="sort-by-hairdresser-btn"
+                onClick={() => setSortBy('hairdresser')}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5 ${
+                  sortBy === 'hairdresser'
+                    ? 'bg-brand text-white shadow-xs'
+                    : 'text-stone-600 hover:text-stone-900'
+                }`}
+                title="จัดกลุ่มคิวจองแยกตามกล่องรายชื่อช่าง"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>รายชื่อช่าง</span>
+              </button>
+            </div>
+
+            {sortBy === 'time' && (
+              <button
+                type="button"
+                id="toggle-sort-order-btn"
+                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                title={sortOrder === 'asc' ? 'เรียงจากเช้าไปค่ำ (09:00 -> 18:00)' : 'เรียงจากค่ำไปเช้า (18:00 -> 09:00)'}
+              >
+                <span>{sortOrder === 'asc' ? '⏱️ เช้า ➔ ค่ำ' : '⏱️ ค่ำ ➔ เช้า'}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Status Filter */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pt-1 md:pt-0">
+            <span className="font-bold text-stone-500 text-[11px] shrink-0">สถานะ:</span>
+            {(['all', 'waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => {
+              const labels: Record<string, string> = {
+                all: 'ทั้งหมด',
+                waiting: 'รอคิว',
+                'in-progress': 'กำลังบริการ',
+                completed: 'เสร็จแล้ว',
+                cancelled: 'ยกเลิก'
+              };
+              const isSelected = selectedStatusFilter === st;
+              return (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setSelectedStatusFilter(st)}
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                    isSelected
+                      ? 'bg-stone-850 text-amber-300 font-extrabold shadow-2xs border border-stone-900'
+                      : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200/60'
+                  }`}
+                >
+                  {labels[st]}
                 </button>
               );
             })}
@@ -597,9 +685,219 @@ export default function BookingList({
         );
       })()}
 
-      {/* Grid of booking cards grouped by date & hairdresser */}
+      {/* Grid of booking cards (Time-Sorted OR Hairdresser-Grouped) */}
       <div className="space-y-6" id="booking-cards-container">
-        {groupedBookings.length > 0 ? (
+        {sortBy === 'time' ? (
+          /* ================= TIME-SORTED VIEW ================= */
+          timeGroupedBookings.length > 0 ? (
+            timeGroupedBookings.map((dateGroup) => {
+              const isDateToday = dateGroup.date === todayStr;
+
+              return (
+                <div key={dateGroup.date} className="space-y-4" id={`time-date-group-${dateGroup.date}`}>
+                  {/* Date Header Badge */}
+                  <div className="flex items-center gap-3 pt-2">
+                    <div className="h-px bg-stone-200/80 flex-grow animate-pulse"></div>
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl border text-xs font-bold font-serif shadow-xs ${
+                      isDateToday
+                        ? 'bg-brand text-white border-brand'
+                        : 'bg-[#F5F2EB] border-[#E2DCD3] text-stone-850'
+                    }`}>
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>{isDateToday ? '☀️ คิวของวันนี้' : '📅 คิววันที่'} - {formatThaiDate(dateGroup.date)}</span>
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-sans font-bold ${
+                        isDateToday ? 'bg-white/20 text-white' : 'bg-[#E3DCD1] text-stone-800'
+                      }`}>
+                        {dateGroup.bookings.length} คิวจอง
+                      </span>
+                    </div>
+                    <div className="h-px bg-stone-200/80 flex-grow animate-pulse"></div>
+                  </div>
+
+                  {/* Chronological Grid of Bookings */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dateGroup.bookings.map((booking) => {
+                      const alertInfo = getUpcoming60MinAlert(booking);
+                      const isUpcoming60Min = alertInfo !== null;
+                      const hdName = getHairdresserName(booking.hairdresserId);
+
+                      return (
+                        <div
+                          key={booking.id}
+                          id={`booking-card-${booking.id}`}
+                          className={`bg-white rounded-3xl border border-stone-200 shadow-xs hover:shadow-md transition-all p-4 flex flex-col gap-3 relative ${
+                            isUpcoming60Min
+                              ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/20'
+                              : ''
+                          }`}
+                        >
+                          {/* 60-Minute Alert Badge */}
+                          {alertInfo && (
+                            <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3.5 py-1.5 rounded-2xl text-[10px] font-black shadow-2xs animate-pulse">
+                              <span className="flex items-center gap-1.5 truncate text-white">
+                                <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                                <span>{alertInfo.label}</span>
+                              </span>
+                              <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold shrink-0">
+                                เตรียมพร้อม
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Time Header & Barber Badge */}
+                          <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2.5">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="bg-stone-earth text-[#DBCBB5] px-2.5 py-1 rounded-xl text-xs font-mono font-bold shrink-0 border border-stone-850 shadow-2xs flex items-center gap-1">
+                                <Clock className="w-3 h-3 text-amber-400" />
+                                <span>{formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
+                              </span>
+
+                              <span className={`px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 flex items-center gap-1 truncate ${
+                                booking.hairdresserId === null || booking.isAnyBarber
+                                  ? 'bg-amber-100/80 text-amber-900 border border-amber-300/80'
+                                  : 'bg-stone-100 text-stone-800 border border-stone-200'
+                              }`}>
+                                <UserCheck className="w-3 h-3 text-brand" />
+                                <span>{hdName}</span>
+                              </span>
+                            </div>
+
+                            {/* Actions: Edit & Delete */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                id={`edit-btn-${booking.id}`}
+                                onClick={() => startEdit(booking)}
+                                className="text-stone-400 hover:text-brand p-1.5 rounded-xl hover:bg-stone-100 transition-all cursor-pointer"
+                                title="แก้ไขคิวจอง"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                id={`delete-btn-${booking.id}`}
+                                onClick={() => setBookingToDelete(booking)}
+                                className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-xl transition-all cursor-pointer"
+                                title="ลบคิวจอง"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Customer Info & Status Row */}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <h4 className="font-bold text-stone-900 text-xs sm:text-sm truncate">
+                                คุณ{booking.customerName}
+                              </h4>
+                              {booking.customerPhone && (
+                                <a
+                                  href={`tel:${booking.customerPhone}`}
+                                  className="inline-flex items-center gap-1 text-[11px] text-stone-600 hover:text-brand font-semibold bg-stone-50 border border-stone-200/80 px-2.5 py-0.5 rounded-lg hover:border-brand/40 transition-all"
+                                >
+                                  <Phone className="w-2.5 h-2.5 text-brand" />
+                                  <span>{booking.customerPhone}</span>
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Status Menu Dropdown */}
+                            <div className="relative shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
+                                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${getStatusBadgeStyle(booking.status)}`}
+                              >
+                                {getStatusIcon(booking.status)}
+                                <span>{getStatusLabel(booking.status)}</span>
+                                <ChevronDown className="w-3 h-3 text-stone-500" />
+                              </button>
+
+                              {openStatusMenuId === booking.id && (
+                                <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-30 animate-fade-in space-y-0.5">
+                                  {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
+                                    <button
+                                      key={st}
+                                      type="button"
+                                      onClick={() => {
+                                        onUpdateBooking(booking.id, { status: st });
+                                        setOpenStatusMenuId(null);
+                                      }}
+                                      className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
+                                        (booking.status || 'waiting') === st ? 'text-brand bg-brand/5' : 'text-stone-700'
+                                      }`}
+                                    >
+                                      {getStatusIcon(st)}
+                                      <span>{getStatusLabel(st)}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Remarks, Slip, Recorded By */}
+                          {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
+                            <div className="pt-2 border-t border-stone-100 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                              {booking.remarks ? (
+                                <span className="text-brand font-medium italic truncate max-w-full">
+                                  💡 "{booking.remarks}"
+                                </span>
+                              ) : (
+                                <span className="text-stone-350 italic text-[10px]">ไม่มีหมายเหตุ</span>
+                              )}
+
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                {booking.paymentSlipUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
+                                    className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs"
+                                  >
+                                    <span>🧾 ดูสลิป</span>
+                                  </button>
+                                )}
+                                {booking.recordedBy && (
+                                  <span className="text-[9px] text-stone-500 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-md">
+                                    {booking.recordedBy.includes('ลูกค้าจองเอง') ? '📱 จองออนไลน์' : `โดย: ${booking.recordedBy}`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="bg-white rounded-3xl p-12 border border-stone-200 shadow-sm text-center max-w-lg mx-auto" id="no-bookings-time-view">
+              <div className="w-16 h-16 rounded-full bg-[#FDF8F3] flex items-center justify-center mx-auto text-3xl mb-4 border border-brand/20">
+                📅
+              </div>
+              <h3 className="font-bold text-stone-900 text-base font-serif">ไม่พบคิวการจอง</h3>
+              <p className="text-xs text-stone-500 mt-1.5 max-w-sm mx-auto leading-relaxed">
+                {searchQuery 
+                  ? 'ไม่พบคิวจองที่ตรงตามคำค้นหาหรือตัวกรองของคุณ กรุณาลองตรวจสอบใหม่อีกครั้ง'
+                  : 'ไม่มีรายการจองตามกำหนดการที่คุณเปิดอยู่ ณ ขณะนี้'}
+              </p>
+              {!searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => jumpToTab(0)}
+                  className="mt-6 inline-flex px-5 py-2.5 bg-brand hover:bg-brand-dark text-white text-xs font-bold rounded-2xl gap-1.5 items-center transition-all shadow-sm cursor-pointer"
+                >
+                  <span>💇‍♂️ เริ่มต้นลงคิวใหม่ตอนนี้</span>
+                </button>
+              )}
+            </div>
+          )
+        ) : (
+          /* ================= HAIRDRESSER-GROUPED VIEW ================= */
+          groupedBookings.length > 0 ? (
           groupedBookings.map((dateGroup) => {
             const isDateToday = dateGroup.date === todayStr;
 
@@ -849,7 +1147,8 @@ export default function BookingList({
               </button>
             )}
           </div>
-        )}
+        )
+      )}
       </div>
 
       {/* Edit Booking Modal Overlay */}

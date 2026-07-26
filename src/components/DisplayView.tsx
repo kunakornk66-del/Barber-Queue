@@ -8,6 +8,79 @@ import { Booking, Hairdresser } from '../types';
 import { Clock, Volume2, Maximize2, Minimize2, Calendar, Scissors, User, ArrowRight, CheckCircle2, Moon, Sun, RotateCw, Sparkles, Bell, Radio } from 'lucide-react';
 import { formatThaiTime } from './BookingList';
 
+// Deterministic Barber Palette for vibrant distinct avatars
+const BARBER_PALETTES = [
+  { bg: 'bg-gradient-to-tr from-amber-500 to-amber-400 text-stone-950 border-amber-300' },
+  { bg: 'bg-gradient-to-tr from-emerald-500 to-teal-400 text-stone-950 border-emerald-300' },
+  { bg: 'bg-gradient-to-tr from-sky-500 to-cyan-400 text-stone-950 border-sky-300' },
+  { bg: 'bg-gradient-to-tr from-purple-500 to-indigo-400 text-white border-purple-300' },
+  { bg: 'bg-gradient-to-tr from-rose-500 to-pink-400 text-white border-rose-300' },
+  { bg: 'bg-gradient-to-tr from-orange-500 to-amber-400 text-stone-950 border-orange-300' },
+  { bg: 'bg-gradient-to-tr from-violet-500 to-fuchsia-400 text-white border-violet-300' },
+  { bg: 'bg-gradient-to-tr from-teal-500 to-emerald-400 text-stone-950 border-teal-300' },
+];
+
+function getBarberPalette(idOrName: string) {
+  if (!idOrName) return BARBER_PALETTES[0];
+  let hash = 0;
+  for (let i = 0; i < idOrName.length; i++) {
+    hash = idOrName.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % BARBER_PALETTES.length;
+  return BARBER_PALETTES[index];
+}
+
+function BarberAvatar({ 
+  hairdresser, 
+  name, 
+  size = 'md' 
+}: { 
+  hairdresser?: Hairdresser; 
+  name: string; 
+  size?: 'sm' | 'md' | 'lg' | 'xl' 
+}) {
+  const [imgError, setImgError] = useState(false);
+  const avatarUrl = hairdresser?.avatarUrl;
+  const palette = getBarberPalette(hairdresser?.id || name);
+  
+  const cleanName = name.replace(/^(ช่าง|นาย|นาง|นางสาว)\s*/, '').trim();
+  const initial = (cleanName || name || 'ช').charAt(0).toUpperCase();
+
+  const sizeClasses = {
+    sm: 'w-7 h-7 text-xs border shadow-xs',
+    md: 'w-10 h-10 text-sm border-2 shadow-sm',
+    lg: 'w-12 h-12 sm:w-14 sm:h-14 text-lg sm:text-xl border-2 shadow-md',
+    xl: 'w-16 h-16 sm:w-20 sm:h-20 text-2xl sm:text-3xl border-3 shadow-lg'
+  }[size];
+
+  if (avatarUrl && !imgError) {
+    return (
+      <div className="relative shrink-0 inline-block">
+        <img 
+          src={avatarUrl} 
+          alt={`ช่าง ${name}`} 
+          onError={() => setImgError(true)}
+          className={`${sizeClasses} rounded-full object-cover border-amber-400/90 bg-stone-800 shadow-md`}
+          referrerPolicy="no-referrer"
+        />
+        <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-stone-900 rounded-full" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative shrink-0 inline-block">
+      <div 
+        className={`${sizeClasses} ${palette.bg} rounded-full flex items-center justify-center font-serif font-black uppercase tracking-wider shrink-0 shadow-md border-white/40 ring-1 ring-black/10`}
+        title={`ช่าง ${name}`}
+      >
+        {initial}
+      </div>
+      <span className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 border-2 border-stone-900 rounded-full" />
+    </div>
+  );
+}
+
 interface DisplayViewProps {
   bookings: Booking[];
   hairdressers: Hairdresser[];
@@ -215,6 +288,12 @@ export default function DisplayView({
 
   const todayStr = getTodayDateString();
   const currentHHMM = currentTime.toTimeString().slice(0, 5); // "HH:MM"
+
+  // Get hairdresser object
+  const getHairdresserObj = (id: string | null) => {
+    if (id === null) return undefined;
+    return hairdressers.find(h => h.id === id);
+  };
 
   // Get name of hairdresser
   const getHairdresserName = (id: string | null) => {
@@ -439,9 +518,9 @@ export default function DisplayView({
                     <span>LIVE SYNC (คลาวด์เชื่อมต่อสด)</span>
                   </span>
                 ) : (
-                  <span className="text-[11px] px-3 py-0.5 rounded-full font-black bg-amber-500/25 text-amber-300 border border-amber-500/60 flex items-center gap-1.5 animate-pulse shadow-xs">
-                    <RotateCw className="w-3 h-3 text-amber-300 animate-spin" />
-                    <span>🔄 กำลังเชื่อมต่อสัญญาณคลาวด์ใหม่...</span>
+                  <span className="text-[11px] px-3 py-0.5 rounded-full font-black bg-stone-500/25 text-stone-300 border border-stone-500/60 flex items-center gap-1.5 shadow-xs">
+                    <Radio className="w-3 h-3 text-amber-400" />
+                    <span>💾 โหมดออฟไลน์ (ใช้งานข้อมูลท้องถิ่น)</span>
                   </span>
                 )}
 
@@ -848,17 +927,24 @@ export default function DisplayView({
                         }`}>
                           {booking.customerName}
                         </h3>
-                        {/* Barber / Hairdresser Name */}
-                        <div className={`flex items-center gap-2.5 text-lg sm:text-2xl lg:text-3xl font-bold mt-4 ${
+                        {/* Barber / Hairdresser Name with Profile Avatar */}
+                        <div className={`flex items-center gap-3 text-lg sm:text-2xl lg:text-3xl font-bold mt-4 flex-wrap ${
                           isDark ? 'text-stone-300' : 'text-stone-600'
                         }`}>
-                          <Scissors className={`w-6 h-6 lg:w-7 lg:h-7 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
-                          <span>ช่างที่ดูแล:</span>
-                          <span className={`font-black font-serif underline underline-offset-4 ${
-                            isDark ? 'text-amber-400 decoration-amber-400/40' : 'text-brand decoration-brand/30'
-                          }`}>
-                            ช่าง{getHairdresserName(booking.hairdresserId)}
-                          </span>
+                          <BarberAvatar 
+                            hairdresser={getHairdresserObj(booking.hairdresserId)} 
+                            name={getHairdresserName(booking.hairdresserId)} 
+                            size="lg" 
+                          />
+                          <div className="flex items-center gap-2">
+                            <Scissors className={`w-6 h-6 lg:w-7 lg:h-7 shrink-0 ${isDark ? 'text-amber-400' : 'text-brand'}`} />
+                            <span>ช่างที่ดูแล:</span>
+                            <span className={`font-black font-serif underline underline-offset-4 ${
+                              isDark ? 'text-amber-400 decoration-amber-400/40' : 'text-brand decoration-brand/30'
+                            }`}>
+                              ช่าง{getHairdresserName(booking.hairdresserId)}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -932,10 +1018,13 @@ export default function DisplayView({
                   <div key={hd.id} className={`border rounded-2xl p-4 shadow-xs flex flex-col justify-between gap-3 ${
                     isDark ? 'bg-stone-900/80 border-stone-800 text-stone-100' : 'bg-white border-stone-200 text-stone-900'
                   }`}>
-                    <div className="flex items-center justify-between">
-                      <h4 className={`font-serif font-bold text-sm ${isDark ? 'text-stone-100' : 'text-stone-900'}`}>
-                        ช่าง{hd.name}
-                      </h4>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <BarberAvatar hairdresser={hd} name={hd.name} size="md" />
+                        <h4 className={`font-serif font-bold text-sm sm:text-base truncate ${isDark ? 'text-stone-100' : 'text-stone-900'}`}>
+                          ช่าง{hd.name}
+                        </h4>
+                      </div>
                       {isBusy ? (
                         <span className="text-[10px] bg-amber-500 text-stone-950 font-black px-2 py-0.5 rounded-lg animate-pulse">
                           กำลังบริการ
@@ -1058,12 +1147,19 @@ export default function DisplayView({
                           {booking.customerName}
                         </h4>
                         {/* Preferred Barber */}
-                        <p className={`text-xs sm:text-base font-bold mt-2.5 flex items-center gap-2 ${
+                        <div className={`text-xs sm:text-base font-bold mt-2.5 flex items-center gap-2.5 ${
                           isDark ? 'text-stone-400' : 'text-stone-600'
                         }`}>
-                          <Scissors className="w-4 h-4 text-stone-400" />
-                          <span>ช่างที่ดูแล: <span className={`font-black ${isDark ? 'text-stone-200' : 'text-stone-850'}`}>ช่าง{getHairdresserName(booking.hairdresserId)}</span></span>
-                        </p>
+                          <BarberAvatar 
+                            hairdresser={getHairdresserObj(booking.hairdresserId)} 
+                            name={getHairdresserName(booking.hairdresserId)} 
+                            size="sm" 
+                          />
+                          <p className="flex items-center gap-1.5">
+                            <Scissors className="w-4 h-4 text-stone-400 shrink-0" />
+                            <span>ช่างที่ดูแล: <span className={`font-black ${isDark ? 'text-stone-200' : 'text-stone-850'}`}>ช่าง{getHairdresserName(booking.hairdresserId)}</span></span>
+                          </p>
+                        </div>
                       </div>
                     </div>
 

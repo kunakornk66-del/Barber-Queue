@@ -6,6 +6,7 @@
 export interface Hairdresser {
   id: string;
   name: string;
+  avatarUrl?: string; // Optional avatar image URL or Base64
   onLeave?: boolean;
   busyStart?: string; // ISO string representing when they started serving
   busyUntil?: string; // ISO string representing when they will be free
