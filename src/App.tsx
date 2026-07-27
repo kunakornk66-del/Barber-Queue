@@ -11,8 +11,9 @@ import LeaveManager from './components/LeaveManager';
 import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
 import CustomerSelfBookingView from './components/CustomerSelfBookingView';
+import TimetableGrid from './components/TimetableGrid';
 import MascotAssistant, { triggerMascotPopup } from './components/MascotAssistant';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe } from 'lucide-react';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe, LayoutGrid } from 'lucide-react';
 import { DEFAULT_THEME_ID, applyThemePalette } from './theme';
 import { safeLocalStorage } from './utils/storage';
 
@@ -1845,14 +1846,18 @@ export default function App() {
             {(() => {
               const status = getShopOpenStatus();
               return (
-                <div className={`px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-2xl border flex items-center gap-2.5 sm:gap-3 shadow-sm transition-all shrink-0 ${status.badgeStyle}`} id="header-shop-status-badge">
+                <div className={`px-3.5 sm:px-4 py-2.5 rounded-2xl border flex items-center gap-3 shadow-md transition-all shrink-0 ${status.badgeStyle}`} id="header-shop-status-badge">
                   <div className="relative flex h-3.5 w-3.5 shrink-0 items-center justify-center">
                     <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${status.dotStyle}`}></span>
                     <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${status.isOpen ? 'bg-emerald-400' : 'bg-amber-400'}`}></span>
                   </div>
-                  <div className="text-left">
-                    <p className="text-[11px] font-black uppercase tracking-tight whitespace-nowrap">{status.statusText}</p>
-                    <p className="text-[10px] font-mono opacity-90 whitespace-nowrap">{status.timeText}</p>
+                  <div className="text-left flex flex-col justify-center">
+                    <p className="text-[10px] font-extrabold uppercase tracking-wider opacity-85 whitespace-nowrap">
+                      {status.statusText}
+                    </p>
+                    <p className="text-xs sm:text-sm font-black font-mono tracking-wide text-white whitespace-nowrap mt-0.5 drop-shadow-xs">
+                      {status.timeText}
+                    </p>
                   </div>
                 </div>
               );
@@ -1907,6 +1912,26 @@ export default function App() {
             <div className="flex flex-col items-center leading-snug text-center">
               <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ลงคิว</span>
               <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 0 ? 'text-white/85' : 'text-stone-400'}`}>(หน้าแรก)</span>
+            </div>
+          </button>
+
+          {/* Tab NEW: ตารางคิว (Timetable Matrix Grid) */}
+          <button
+            onClick={() => setActiveTab(6)}
+            id="nav-tab-timetable"
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer relative min-w-0 ${
+              activeTab === 6
+                ? 'bg-brand text-white shadow-md ring-2 ring-amber-400/50'
+                : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4 shrink-0" />
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap flex items-center gap-0.5">
+                <span>ตารางคิว</span>
+                <span className="bg-amber-500 text-stone-950 font-black text-[8px] px-1 rounded-full">NEW</span>
+              </span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 6 ? 'text-white/85' : 'text-stone-400'}`}>(ผังเวลาช่าง)</span>
             </div>
           </button>
 
@@ -2019,6 +2044,25 @@ export default function App() {
               shopHolidays={shopHolidays}
               shopOpenTime={shopOpenTime}
               shopCloseTime={shopCloseTime}
+            />
+          </div>
+        )}
+
+        {activeTab === 6 && (
+          <div>
+            <TimetableGrid
+              hairdressers={hairdressers}
+              bookings={bookings}
+              leaves={leaves}
+              services={services}
+              recorders={recorders}
+              shopOpenTime={shopOpenTime}
+              shopCloseTime={shopCloseTime}
+              slotDuration={slotDuration}
+              onAddBooking={handleAddBooking}
+              onUpdateBooking={handleUpdateBooking}
+              onDeleteBooking={handleDeleteBooking}
+              jumpToTab={setActiveTab}
             />
           </div>
         )}
