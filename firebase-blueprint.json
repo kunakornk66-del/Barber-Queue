@@ -69,6 +69,19 @@
         "role": { "type": "string", "description": "Role or position of the recorder" }
       },
       "required": ["id", "name"]
+    },
+    "ShopService": {
+      "title": "ShopService",
+      "description": "Represents a service offered by the barber shop",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique ID of the service" },
+        "name": { "type": "string", "description": "Name of the service" },
+        "durationMinutes": { "type": "number", "description": "Duration in minutes" },
+        "price": { "type": "number", "description": "Price in THB" },
+        "category": { "type": "string", "description": "Service category" }
+      },
+      "required": ["id", "name", "durationMinutes", "price"]
     }
   },
   "firestore": {
@@ -79,6 +92,10 @@
     "stores/{shopEmail}/recorders/{recorderId}": {
       "schema": "StaffRecorder",
       "description": "List of staff recorders for a specific shop"
+    },
+    "stores/{shopEmail}/services/{serviceId}": {
+      "schema": "ShopService",
+      "description": "Services list for a specific shop"
     },
     "stores/{shopEmail}/bookings/{bookingId}": {
       "schema": "Booking",

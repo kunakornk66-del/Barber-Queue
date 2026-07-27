@@ -113,7 +113,7 @@ export default function DisplayView({
   const prevBookingsRef = useRef<Booking[]>(bookings);
 
   // Theme state for display monitor
-  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'oled' | 'auto'>('dark');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'oled' | 'auto'>('light');
   const [autoCycle, setAutoCycle] = useState<boolean>(false);
   const [cycleTheme, setCycleTheme] = useState<'light' | 'dark' | 'oled'>('oled');
 

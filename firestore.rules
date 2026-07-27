@@ -60,6 +60,14 @@ service cloud.firestore {
         && data.get('adminPin', '') is string && data.get('adminPin', '').size() <= 32
         && data.get('shopLogoUrl', '') is string && data.get('shopLogoUrl', '').size() <= 800000;
     }
+
+    function isValidService(data) {
+      return data.get('id', '') is string && data.get('id', '').size() <= 128
+        && data.get('name', '') is string && data.get('name', '').size() <= 100
+        && (data.get('durationMinutes', 0) is number || data.get('durationMinutes', 0) is int)
+        && (data.get('price', 0) is number || data.get('price', 0) is int)
+        && (data.get('category', '') is string && data.get('category', '').size() <= 100);
+    }
     
     function isValidLeave(data) {
       return data.get('id', '') is string && data.get('id', '').size() <= 128
@@ -76,6 +84,11 @@ service cloud.firestore {
     // Helper to check if user is manager of the store they are writing to
     function isManagerOfStore(shopEmail) {
       return true;
+    }
+
+    // Test connection check endpoint
+    match /test/{docId} {
+      allow read: if true;
     }
 
     // Tenant-isolated collections under stores
@@ -98,6 +111,13 @@ service cloud.firestore {
       allow create: if isValidId(recorderId) && isValidRecorder(incoming());
       allow update: if isValidId(recorderId) && isValidRecorder(incoming());
       allow delete: if isValidId(recorderId);
+    }
+
+    match /stores/{shopEmail}/services/{serviceId} {
+      allow read: if true;
+      allow create: if isValidId(serviceId) && isValidService(incoming());
+      allow update: if isValidId(serviceId) && isValidService(incoming());
+      allow delete: if isValidId(serviceId);
     }
 
     match /stores/{shopEmail}/settings/{settingId} {

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useMemo } from 'react';
 import { Booking, Hairdresser, LeaveRecord } from '../types';
 import { Trash2, Phone, Calendar, Clock, User, UserCheck, Search, Sparkles, Pencil, X, Check, AlertCircle, AlertTriangle, ChevronDown, Scissors, CheckCircle2, Smartphone } from 'lucide-react';
 
@@ -12,6 +12,50 @@ export const formatThaiTime = (timeStr: string) => {
   if (!timeStr) return '';
   const cleanTime = timeStr.trim().replace(' น.', '').replace('น.', '');
   return cleanTime.replace(':', '.') + 'น.';
+};
+
+// Helper to parse time string "HH:MM" to total minutes from midnight
+export const parseTimeToMinutes = (timeStr: string): number => {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(':');
+  const h = parseInt(parts[0], 10) || 0;
+  const m = parseInt(parts[1], 10) || 0;
+  return h * 60 + m;
+};
+
+// Helper to format minutes into readable Thai duration
+export const formatGapDurationThai = (mins: number): string => {
+  if (mins < 60) return `${mins} นาที`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs} ชม. ${remMins} นาที` : `${hrs} ชั่วโมง`;
+};
+
+// Helper to derive effective booking status based on explicit setting or real time
+export const getEffectiveStatus = (
+  booking: Booking,
+  currentTime?: Date
+): 'waiting' | 'in-progress' | 'completed' | 'cancelled' => {
+  // Explicit statuses always take priority if explicitly set
+  if (booking.status === 'cancelled') return 'cancelled';
+  if (booking.status === 'completed') return 'completed';
+  if (booking.status === 'in-progress') return 'in-progress';
+
+  // If status is 'waiting' or undefined, calculate if current time is within [startTime, endTime)
+  const now = currentTime || new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const todayStr = `${year}-${month}-${day}`;
+
+  if (booking.date === todayStr) {
+    const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    if (booking.startTime <= currentHHMM && currentHHMM < booking.endTime) {
+      return 'in-progress';
+    }
+  }
+
+  return booking.status || 'waiting';
 };
 
 // Status helpers for badges and labels
@@ -81,8 +125,9 @@ export default function BookingList({
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDateFilter, setSelectedDateFilter] = useState<'all' | 'today' | 'upcoming'>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<'all' | 'waiting' | 'in-progress' | 'completed' | 'cancelled'>('all');
-  const [sortBy, setSortBy] = useState<'time' | 'hairdresser'>('time');
+  const [sortBy, setSortBy] = useState<'time' | 'hairdresser'>('hairdresser');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [showFreeGaps, setShowFreeGaps] = useState(true);
   const [openStatusMenuId, setOpenStatusMenuId] = useState<string | null>(null);
   const [now, setNow] = useState<Date>(new Date());
 
@@ -92,9 +137,10 @@ export default function BookingList({
     return () => clearInterval(timer);
   }, []);
 
-  // Helper to check if a booking is within the next 60 minutes
+  // Helper to check if a booking is within the next 60 minutes or active
   const getUpcoming60MinAlert = (booking: Booking) => {
-    if (booking.status === 'completed' || booking.status === 'cancelled') return null;
+    const effStatus = getEffectiveStatus(booking, now);
+    if (effStatus === 'completed' || effStatus === 'cancelled') return null;
     
     try {
       const [year, month, day] = booking.date.split('-').map(Number);
@@ -109,13 +155,17 @@ export default function BookingList({
       const nowDateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       if (booking.date !== nowDateStr) return null;
 
+      if (effStatus === 'in-progress') {
+        return { isUpcoming: true, label: '✂️ กำลังให้บริการ ณ ขณะนี้', mins: 0, isNow: true };
+      }
+
       if (diffMins >= 0 && diffMins <= 60) {
         if (diffMins === 0) {
           return { isUpcoming: true, label: '⚡ ถึงเวลานัดหมายแล้ว (เตรียมให้บริการ)', mins: 0, isNow: true };
         }
         return { isUpcoming: true, label: `⚡ อีก ${diffMins} นาทีถึงคิว (เตรียมพร้อม)`, mins: diffMins, isNow: false };
       }
-      if (diffMins < 0 && diffMins >= -30 && booking.status !== 'in-progress') {
+      if (diffMins < 0 && diffMins >= -60) {
         return { isUpcoming: true, label: `🔥 ถึงเวลาแล้ว (${Math.abs(diffMins)} นาทีที่แล้ว)`, mins: diffMins, isNow: true };
       }
     } catch {
@@ -385,6 +435,33 @@ export default function BookingList({
     return found ? `ช่าง${found.name}` : 'ช่างไม่ถูกพบ';
   };
 
+  // Calculate counts for each status button matching current search and date filters
+  const statusCounts = useMemo(() => {
+    const counts = { all: 0, waiting: 0, 'in-progress': 0, completed: 0, cancelled: 0 };
+    bookings.forEach((b) => {
+      // 1. Search Query filter
+      const query = searchQuery.toLowerCase().trim();
+      const hdName = b.hairdresserId ? getHairdresserName(b.hairdresserId).toLowerCase() : 'ไม่ระบุช่าง';
+      const matchesSearch =
+        b.customerName.toLowerCase().includes(query) ||
+        b.customerPhone.includes(query) ||
+        b.remarks.toLowerCase().includes(query) ||
+        b.recordedBy.toLowerCase().includes(query) ||
+        hdName.includes(query);
+
+      if (!matchesSearch) return;
+
+      // 2. Tab Date Filter
+      if (selectedDateFilter === 'today' && b.date !== todayStr) return;
+      if (selectedDateFilter === 'upcoming' && b.date <= todayStr) return;
+
+      counts.all++;
+      const effStatus = getEffectiveStatus(b, now);
+      counts[effStatus]++;
+    });
+    return counts;
+  }, [bookings, searchQuery, selectedDateFilter, todayStr, now, hairdressers]);
+
   // Filter and Sort bookings
   const filteredBookings = bookings
     .filter(booking => {
@@ -407,10 +484,10 @@ export default function BookingList({
         return false;
       }
 
-      // 3. Status Filter
+      // 3. Status Filter (Uses getEffectiveStatus so current time or explicit status aligns)
       if (selectedStatusFilter !== 'all') {
-        const status = booking.status || 'waiting';
-        if (status !== selectedStatusFilter) return false;
+        const effStatus = getEffectiveStatus(booking, now);
+        if (effStatus !== selectedStatusFilter) return false;
       }
 
       return true;
@@ -545,10 +622,10 @@ export default function BookingList({
                     ? 'bg-brand text-white shadow-xs'
                     : 'text-stone-600 hover:text-stone-900'
                 }`}
-                title="เรียงตามช่วงเวลาจอง (เร็วที่สุด -> ช้าที่สุด)"
+                title="แสดงในรูปแบบ Timeline เส้นตรงตามช่วงเวลา (ดูเวลาที่ว่างคั่นกลางได้ง่าย)"
               >
                 <Clock className="w-3.5 h-3.5" />
-                <span>เวลาจอง (เร็วไปช้า)</span>
+                <span>Timeline ตามเวลา</span>
               </button>
 
               <button
@@ -568,15 +645,31 @@ export default function BookingList({
             </div>
 
             {sortBy === 'time' && (
-              <button
-                type="button"
-                id="toggle-sort-order-btn"
-                onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
-                title={sortOrder === 'asc' ? 'เรียงจากเช้าไปค่ำ (09:00 -> 18:00)' : 'เรียงจากค่ำไปเช้า (18:00 -> 09:00)'}
-              >
-                <span>{sortOrder === 'asc' ? '⏱️ เช้า ➔ ค่ำ' : '⏱️ ค่ำ ➔ เช้า'}</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  id="toggle-sort-order-btn"
+                  onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                  className="px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-stone-200 border border-stone-200 text-stone-800 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                  title={sortOrder === 'asc' ? 'เรียงจากเช้าไปค่ำ (09:00 -> 18:00)' : 'เรียงจากค่ำไปเช้า (18:00 -> 09:00)'}
+                >
+                  <span>{sortOrder === 'asc' ? '⏱️ เช้า ➔ ค่ำ' : '⏱️ ค่ำ ➔ เช้า'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="toggle-show-free-gaps-btn"
+                  onClick={() => setShowFreeGaps(prev => !prev)}
+                  className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all shrink-0 ${
+                    showFreeGaps
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300 shadow-2xs'
+                      : 'bg-stone-100 text-stone-500 border-stone-200 hover:text-stone-800'
+                  }`}
+                  title="เปิด/ปิด การแสดงช่องเวลาว่างคั่นกลางระหว่างคิว"
+                >
+                  <span>{showFreeGaps ? '🟢 แสดงช่วงเวลาว่าง' : '⚪ ซ่อนช่วงเวลาว่าง'}</span>
+                </button>
+              </>
             )}
           </div>
 
@@ -592,18 +685,24 @@ export default function BookingList({
                 cancelled: 'ยกเลิก'
               };
               const isSelected = selectedStatusFilter === st;
+              const count = statusCounts[st] || 0;
               return (
                 <button
                   key={st}
                   type="button"
                   onClick={() => setSelectedStatusFilter(st)}
-                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1 ${
                     isSelected
                       ? 'bg-stone-850 text-amber-300 font-extrabold shadow-2xs border border-stone-900'
                       : 'bg-stone-50 text-stone-600 hover:bg-stone-100 border border-stone-200/60'
                   }`}
                 >
-                  {labels[st]}
+                  <span>{labels[st]}</span>
+                  <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${
+                    isSelected ? 'bg-amber-400/20 text-amber-300' : 'bg-stone-200/70 text-stone-700'
+                  }`}>
+                    {count}
+                  </span>
                 </button>
               );
             })}
@@ -714,162 +813,288 @@ export default function BookingList({
                     <div className="h-px bg-stone-200/80 flex-grow animate-pulse"></div>
                   </div>
 
-                  {/* Chronological Grid of Bookings */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {dateGroup.bookings.map((booking) => {
-                      const alertInfo = getUpcoming60MinAlert(booking);
-                      const isUpcoming60Min = alertInfo !== null;
-                      const hdName = getHairdresserName(booking.hairdresserId);
+                  {/* Timeline View with Free Time Gaps */}
+                  {(() => {
+                    const sortedBookings = [...dateGroup.bookings].sort((a, b) => {
+                      const timeCompare = a.startTime.localeCompare(b.startTime);
+                      return sortOrder === 'asc' ? timeCompare : -timeCompare;
+                    });
 
-                      return (
-                        <div
-                          key={booking.id}
-                          id={`booking-card-${booking.id}`}
-                          className={`bg-white rounded-3xl border border-stone-200 shadow-xs hover:shadow-md transition-all p-4 flex flex-col gap-3 relative ${
-                            isUpcoming60Min
-                              ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/20'
-                              : ''
-                          }`}
-                        >
-                          {/* 60-Minute Alert Badge */}
-                          {alertInfo && (
-                            <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3.5 py-1.5 rounded-2xl text-[10px] font-black shadow-2xs animate-pulse">
-                              <span className="flex items-center gap-1.5 truncate text-white">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
-                                <span>{alertInfo.label}</span>
-                              </span>
-                              <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold shrink-0">
-                                เตรียมพร้อม
-                              </span>
-                            </div>
-                          )}
+                    type TimelineItem = 
+                      | { type: 'booking'; booking: Booking }
+                      | { type: 'gap'; startTime: string; endTime: string; durationMins: number; id: string };
 
-                          {/* Time Header & Barber Badge */}
-                          <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2.5">
-                            <div className="flex items-center gap-2 flex-wrap min-w-0">
-                              <span className="bg-stone-earth text-[#DBCBB5] px-2.5 py-1 rounded-xl text-xs font-mono font-bold shrink-0 border border-stone-850 shadow-2xs flex items-center gap-1">
-                                <Clock className="w-3 h-3 text-amber-400" />
-                                <span>{formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
-                              </span>
+                    const timelineItems: TimelineItem[] = [];
 
-                              <span className={`px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 flex items-center gap-1 truncate ${
-                                booking.hairdresserId === null || booking.isAnyBarber
-                                  ? 'bg-amber-100/80 text-amber-900 border border-amber-300/80'
-                                  : 'bg-stone-100 text-stone-800 border border-stone-200'
-                              }`}>
-                                <UserCheck className="w-3 h-3 text-brand" />
-                                <span>{hdName}</span>
-                              </span>
-                            </div>
+                    if (sortOrder === 'asc' && showFreeGaps) {
+                      // Morning gap check before first booking (assuming shop opens at 09:00 / 540 mins)
+                      const SHOP_OPEN_MINS = 9 * 60; // 09:00 AM
+                      if (sortedBookings.length > 0) {
+                        const firstStartMins = parseTimeToMinutes(sortedBookings[0].startTime);
+                        if (firstStartMins - SHOP_OPEN_MINS >= 15) {
+                          timelineItems.push({
+                            type: 'gap',
+                            startTime: '09:00',
+                            endTime: sortedBookings[0].startTime,
+                            durationMins: firstStartMins - SHOP_OPEN_MINS,
+                            id: `gap-morning-${sortedBookings[0].id}`
+                          });
+                        }
+                      }
 
-                            {/* Actions: Edit & Delete */}
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                id={`edit-btn-${booking.id}`}
-                                onClick={() => startEdit(booking)}
-                                className="text-stone-400 hover:text-brand p-1.5 rounded-xl hover:bg-stone-100 transition-all cursor-pointer"
-                                title="แก้ไขคิวจอง"
-                              >
-                                <Pencil className="w-3.5 h-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                id={`delete-btn-${booking.id}`}
-                                onClick={() => setBookingToDelete(booking)}
-                                className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-xl transition-all cursor-pointer"
-                                title="ลบคิวจอง"
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                              </button>
-                            </div>
-                          </div>
+                      sortedBookings.forEach((b, idx) => {
+                        if (idx > 0) {
+                          const prevBooking = sortedBookings[idx - 1];
+                          const prevEndMins = parseTimeToMinutes(prevBooking.endTime);
+                          const currStartMins = parseTimeToMinutes(b.startTime);
+                          const gapMins = currStartMins - prevEndMins;
 
-                          {/* Customer Info & Status Row */}
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 space-y-1">
-                              <h4 className="font-bold text-stone-900 text-xs sm:text-sm truncate">
-                                คุณ{booking.customerName}
-                              </h4>
-                              {booking.customerPhone && (
-                                <a
-                                  href={`tel:${booking.customerPhone}`}
-                                  className="inline-flex items-center gap-1 text-[11px] text-stone-600 hover:text-brand font-semibold bg-stone-50 border border-stone-200/80 px-2.5 py-0.5 rounded-lg hover:border-brand/40 transition-all"
-                                >
-                                  <Phone className="w-2.5 h-2.5 text-brand" />
-                                  <span>{booking.customerPhone}</span>
-                                </a>
-                              )}
-                            </div>
+                          if (gapMins >= 15) {
+                            timelineItems.push({
+                              type: 'gap',
+                              startTime: prevBooking.endTime,
+                              endTime: b.startTime,
+                              durationMins: gapMins,
+                              id: `gap-${prevBooking.id}-${b.id}`
+                            });
+                          }
+                        }
+                        timelineItems.push({ type: 'booking', booking: b });
+                      });
 
-                            {/* Status Menu Dropdown */}
-                            <div className="relative shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
-                                className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${getStatusBadgeStyle(booking.status)}`}
-                              >
-                                {getStatusIcon(booking.status)}
-                                <span>{getStatusLabel(booking.status)}</span>
-                                <ChevronDown className="w-3 h-3 text-stone-500" />
-                              </button>
+                      // Evening gap check after last booking (assuming shop closes at 20:00 / 1200 mins)
+                      const SHOP_CLOSE_MINS = 20 * 60; // 20:00 PM
+                      if (sortedBookings.length > 0) {
+                        const lastBooking = sortedBookings[sortedBookings.length - 1];
+                        const lastEndMins = parseTimeToMinutes(lastBooking.endTime);
+                        if (SHOP_CLOSE_MINS - lastEndMins >= 30) {
+                          timelineItems.push({
+                            type: 'gap',
+                            startTime: lastBooking.endTime,
+                            endTime: '20:00',
+                            durationMins: SHOP_CLOSE_MINS - lastEndMins,
+                            id: `gap-evening-${lastBooking.id}`
+                          });
+                        }
+                      }
+                    } else {
+                      sortedBookings.forEach(b => timelineItems.push({ type: 'booking', booking: b }));
+                    }
 
-                              {openStatusMenuId === booking.id && (
-                                <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-30 animate-fade-in space-y-0.5">
-                                  {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
-                                    <button
-                                      key={st}
-                                      type="button"
-                                      onClick={() => {
-                                        onUpdateBooking(booking.id, { status: st });
-                                        setOpenStatusMenuId(null);
-                                      }}
-                                      className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
-                                        (booking.status || 'waiting') === st ? 'text-brand bg-brand/5' : 'text-stone-700'
-                                      }`}
-                                    >
-                                      {getStatusIcon(st)}
-                                      <span>{getStatusLabel(st)}</span>
-                                    </button>
-                                  ))}
+                    return (
+                      <div className="relative pl-6 sm:pl-9 space-y-3.5 my-2 before:absolute before:left-2.5 sm:before:left-3.5 before:top-3 before:bottom-3 before:w-1 before:bg-gradient-to-b before:from-brand/90 before:via-amber-400/80 before:to-stone-300 before:rounded-full">
+                        {timelineItems.map((item) => {
+                          if (item.type === 'gap') {
+                            return (
+                              <div key={item.id} className="relative group animate-fade-in my-1.5">
+                                {/* Node dot for gap */}
+                                <div className="absolute -left-6 sm:-left-9 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-emerald-500 ring-4 ring-emerald-100/90 text-white flex items-center justify-center text-[10px] shadow-xs z-10 font-bold">
+                                  🟢
                                 </div>
-                              )}
-                            </div>
-                          </div>
 
-                          {/* Remarks, Slip, Recorded By */}
-                          {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
-                            <div className="pt-2 border-t border-stone-100 text-[11px] flex flex-wrap items-center justify-between gap-2">
-                              {booking.remarks ? (
-                                <span className="text-brand font-medium italic truncate max-w-full">
-                                  💡 "{booking.remarks}"
-                                </span>
-                              ) : (
-                                <span className="text-stone-350 italic text-[10px]">ไม่มีหมายเหตุ</span>
-                              )}
+                                {/* Gap Card */}
+                                <div className="bg-emerald-50/80 border border-dashed border-emerald-300 hover:border-emerald-500 rounded-2xl p-3 sm:px-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 transition-all shadow-2xs">
+                                  <div className="flex items-center gap-2.5 flex-wrap">
+                                    <span className="bg-emerald-700 text-white font-mono font-black text-xs px-2.5 py-1 rounded-xl shadow-2xs flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-emerald-200" />
+                                      <span>{formatThaiTime(item.startTime)} - {formatThaiTime(item.endTime)}</span>
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-black text-emerald-950">
+                                        ช่วงเวลาว่างคั่นกลาง
+                                      </span>
+                                      <span className="bg-emerald-200/80 text-emerald-950 text-[11px] font-bold px-2 py-0.5 rounded-lg border border-emerald-300/60">
+                                        ว่าง {formatGapDurationThai(item.durationMins)}
+                                      </span>
+                                    </div>
+                                  </div>
 
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                {booking.paymentSlipUrl && (
                                   <button
                                     type="button"
-                                    onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
-                                    className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs"
+                                    onClick={() => jumpToTab(0)}
+                                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-950 bg-emerald-200/90 hover:bg-emerald-300/90 border border-emerald-400/80 px-3 py-1.5 rounded-xl transition-all shadow-2xs cursor-pointer shrink-0"
+                                    title="สลับไปหน้าลงคิวเพื่อรับคิวจองช่วงเวลานี้"
                                   >
-                                    <span>🧾 ดูสลิป</span>
+                                    <Sparkles className="w-3.5 h-3.5 text-emerald-700" />
+                                    <span>➕ ลงคิวช่วงนี้</span>
                                   </button>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          const booking = item.booking;
+                          const effStatus = getEffectiveStatus(booking, now);
+                          const alertInfo = getUpcoming60MinAlert(booking);
+                          const isUpcoming60Min = alertInfo !== null;
+                          const hdName = getHairdresserName(booking.hairdresserId);
+
+                          return (
+                            <div key={booking.id} className="relative group my-2" id={`timeline-node-${booking.id}`}>
+                              {/* Timeline Node Icon on line */}
+                              <div className={`absolute -left-6 sm:-left-9 top-4 w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shadow-xs z-10 border-2 border-white transition-all ${
+                                effStatus === 'completed'
+                                  ? 'bg-emerald-600 text-white ring-2 ring-emerald-200'
+                                  : effStatus === 'in-progress'
+                                  ? 'bg-blue-600 text-white ring-2 ring-blue-200 animate-pulse'
+                                  : effStatus === 'cancelled'
+                                  ? 'bg-rose-500 text-white ring-2 ring-rose-200'
+                                  : 'bg-brand text-white ring-2 ring-amber-200'
+                              }`}>
+                                {effStatus === 'completed' ? '✓' : effStatus === 'in-progress' ? '✂️' : effStatus === 'cancelled' ? '✕' : '💈'}
+                              </div>
+
+                              {/* Booking Card */}
+                              <div
+                                id={`booking-card-${booking.id}`}
+                                className={`bg-white rounded-3xl border border-stone-200 shadow-xs hover:shadow-md transition-all p-4 flex flex-col gap-3 relative ${
+                                  isUpcoming60Min
+                                    ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/20'
+                                    : ''
+                                }`}
+                              >
+                                {/* 60-Minute Alert Badge */}
+                                {alertInfo && (
+                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3.5 py-1.5 rounded-2xl text-[10px] font-black shadow-2xs animate-pulse">
+                                    <span className="flex items-center gap-1.5 truncate text-white">
+                                      <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                                      <span>{alertInfo.label}</span>
+                                    </span>
+                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold shrink-0">
+                                      เตรียมพร้อม
+                                    </span>
+                                  </div>
                                 )}
-                                {booking.recordedBy && (
-                                  <span className="text-[9px] text-stone-500 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-md">
-                                    {booking.recordedBy.includes('ลูกค้าจองเอง') ? '📱 จองออนไลน์' : `โดย: ${booking.recordedBy}`}
-                                  </span>
+
+                                {/* Time Header & Barber Badge */}
+                                <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2.5">
+                                  <div className="flex items-center gap-2 flex-wrap min-w-0">
+                                    <span className="bg-stone-earth text-[#DBCBB5] px-2.5 py-1 rounded-xl text-xs font-mono font-bold shrink-0 border border-stone-850 shadow-2xs flex items-center gap-1">
+                                      <Clock className="w-3 h-3 text-amber-400" />
+                                      <span>{formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
+                                    </span>
+
+                                    <span className={`px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 flex items-center gap-1 truncate ${
+                                      booking.hairdresserId === null || booking.isAnyBarber
+                                        ? 'bg-amber-100/80 text-amber-900 border border-amber-300/80'
+                                        : 'bg-stone-100 text-stone-800 border border-stone-200'
+                                    }`}>
+                                      <UserCheck className="w-3 h-3 text-brand" />
+                                      <span>{hdName}</span>
+                                    </span>
+                                  </div>
+
+                                  {/* Actions: Edit & Delete */}
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <button
+                                      type="button"
+                                      id={`edit-btn-${booking.id}`}
+                                      onClick={() => startEdit(booking)}
+                                      className="text-stone-400 hover:text-brand p-1.5 rounded-xl hover:bg-stone-100 transition-all cursor-pointer"
+                                      title="แก้ไขคิวจอง"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      id={`delete-btn-${booking.id}`}
+                                      onClick={() => setBookingToDelete(booking)}
+                                      className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-xl transition-all cursor-pointer"
+                                      title="ลบคิวจอง"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Customer Info & Status Row */}
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0 space-y-1">
+                                    <h4 className="font-bold text-stone-900 text-xs sm:text-sm truncate">
+                                      คุณ{booking.customerName}
+                                    </h4>
+                                    {booking.customerPhone && (
+                                      <a
+                                        href={`tel:${booking.customerPhone}`}
+                                        className="inline-flex items-center gap-1 text-[11px] text-stone-600 hover:text-brand font-semibold bg-stone-50 border border-stone-200/80 px-2.5 py-0.5 rounded-lg hover:border-brand/40 transition-all"
+                                      >
+                                        <Phone className="w-2.5 h-2.5 text-brand" />
+                                        <span>{booking.customerPhone}</span>
+                                      </a>
+                                    )}
+                                  </div>
+
+                                  {/* Status Menu Dropdown */}
+                                  <div className="relative shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
+                                      className={`px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${getStatusBadgeStyle(effStatus)}`}
+                                    >
+                                      {getStatusIcon(effStatus)}
+                                      <span>{getStatusLabel(effStatus)}</span>
+                                      <ChevronDown className="w-3 h-3 text-stone-500" />
+                                    </button>
+
+                                    {openStatusMenuId === booking.id && (
+                                      <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-30 animate-fade-in space-y-0.5">
+                                        {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
+                                          <button
+                                            key={st}
+                                            type="button"
+                                            onClick={() => {
+                                              onUpdateBooking(booking.id, { status: st });
+                                              setOpenStatusMenuId(null);
+                                            }}
+                                            className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
+                                              effStatus === st ? 'text-brand bg-brand/5' : 'text-stone-700'
+                                            }`}
+                                          >
+                                            {getStatusIcon(st)}
+                                            <span>{getStatusLabel(st)}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Remarks, Slip, Recorded By */}
+                                {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
+                                  <div className="pt-2 border-t border-stone-100 text-[11px] flex flex-wrap items-center justify-between gap-2">
+                                    {booking.remarks ? (
+                                      <span className="text-brand font-medium italic truncate max-w-full">
+                                        💡 "{booking.remarks}"
+                                      </span>
+                                    ) : (
+                                      <span className="text-stone-350 italic text-[10px]">ไม่มีหมายเหตุ</span>
+                                    )}
+
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      {booking.paymentSlipUrl && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
+                                          className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs"
+                                        >
+                                          <span>🧾 ดูสลิป</span>
+                                        </button>
+                                      )}
+                                      {booking.recordedBy && (
+                                        <span className="text-[9px] text-stone-500 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-md">
+                                          {booking.recordedBy.includes('ลูกค้าจองเอง') ? '📱 จองออนไลน์' : `โดย: ${booking.recordedBy}`}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })
@@ -985,6 +1210,7 @@ export default function BookingList({
                         {/* List of compact queue times inside hairdresser's box */}
                         <div className="flex-1 bg-white/50 max-h-[380px] overflow-y-auto divide-y divide-stone-100 px-5" id={`bookings-list-hd-${hdGroup.hairdresserId || 'anyone'}`}>
                           {hdGroup.bookings.map((booking) => {
+                            const effStatus = getEffectiveStatus(booking, now);
                             const alertInfo = getUpcoming60MinAlert(booking);
                             const isUpcoming60Min = alertInfo !== null;
 
@@ -1028,8 +1254,42 @@ export default function BookingList({
                                     )}
                                   </div>
 
-                                  {/* Right side: Phone & Actions */}
+                                  {/* Right side: Status Badge, Phone & Actions */}
                                   <div className="flex items-center gap-2 shrink-0">
+                                    {/* Status Badge Dropdown */}
+                                    <div className="relative shrink-0">
+                                      <button
+                                        type="button"
+                                        onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
+                                        className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all flex items-center gap-1 cursor-pointer ${getStatusBadgeStyle(effStatus)}`}
+                                      >
+                                        {getStatusIcon(effStatus)}
+                                        <span>{getStatusLabel(effStatus)}</span>
+                                        <ChevronDown className="w-2.5 h-2.5 text-stone-500" />
+                                      </button>
+
+                                      {openStatusMenuId === booking.id && (
+                                        <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-30 animate-fade-in space-y-0.5">
+                                          {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
+                                            <button
+                                              key={st}
+                                              type="button"
+                                              onClick={() => {
+                                                onUpdateBooking(booking.id, { status: st });
+                                                setOpenStatusMenuId(null);
+                                              }}
+                                              className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
+                                                effStatus === st ? 'text-brand bg-brand/5' : 'text-stone-700'
+                                              }`}
+                                            >
+                                              {getStatusIcon(st)}
+                                              <span>{getStatusLabel(st)}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+
                                     {booking.customerPhone && (
                                       <a
                                         href={`tel:${booking.customerPhone}`}
