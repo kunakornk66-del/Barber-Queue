@@ -1858,37 +1858,43 @@ export default function App() {
       </header>
 
       {/* Primary Navigation System */}
-      <nav className="max-w-2xl mx-auto px-4 mt-6 mb-8" id="tab-navigation">
+      <nav className="max-w-3xl mx-auto px-4 mt-6 mb-8" id="tab-navigation">
         <div className="bg-white p-1.5 rounded-3xl border border-stone-200/50 shadow-sm flex flex-wrap sm:flex-nowrap gap-1">
           
           {/* Tab 1: ลงคิวจอง */}
           <button
             onClick={() => setActiveTab(0)}
             id="nav-tab-booking"
-            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer min-w-0 ${
               activeTab === 0
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
             <Calendar className="w-4 h-4 shrink-0" />
-            <span>ลงคิว (หน้าแรก)</span>
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ลงคิว</span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 0 ? 'text-white/85' : 'text-stone-400'}`}>(หน้าแรก)</span>
+            </div>
           </button>
 
           {/* Tab 2: รายการจอง */}
           <button
             onClick={() => setActiveTab(1)}
             id="nav-tab-list"
-            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer relative ${
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer relative min-w-0 ${
               activeTab === 1
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
             <Users className="w-4 h-4 shrink-0" />
-            <span>รายการจอง</span>
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">รายการจอง</span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 1 ? 'text-white/85' : 'text-stone-400'}`}>(คิวทั้งหมด)</span>
+            </div>
             {bookings.length > 0 && (
-              <span className={`absolute top-1 sm:top-2 right-1.5 sm:right-3 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center border ${
+              <span className={`absolute top-1 right-1 sm:right-2 px-1.5 py-0.2 rounded-full text-[9px] font-bold flex items-center justify-center border ${
                 activeTab === 1 
                   ? 'bg-white text-stone-900 border-white' 
                   : 'bg-brand text-white border-brand'
@@ -1902,16 +1908,19 @@ export default function App() {
           <button
             onClick={() => setActiveTab(2)}
             id="nav-tab-leaves"
-            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer relative ${
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer relative min-w-0 ${
               activeTab === 2
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
             <CalendarOff className="w-4 h-4 shrink-0" />
-            <span>ปิดคิว/ลางาน</span>
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ปิดคิว/ลางาน</span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 2 ? 'text-white/85' : 'text-stone-400'}`}>(จัดการวันหยุด)</span>
+            </div>
             {leaves.length > 0 && (
-              <span className={`absolute top-1 sm:top-2 right-1.5 sm:right-3 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center border ${
+              <span className={`absolute top-1 right-1 sm:right-2 px-1.5 py-0.2 rounded-full text-[9px] font-bold flex items-center justify-center border ${
                 activeTab === 2
                   ? 'bg-white text-amber-955 border-white'
                   : 'bg-[#B05B1E] text-white border-[#B05B1E]'
@@ -1925,28 +1934,34 @@ export default function App() {
           <button
             onClick={() => setActiveTab(5)}
             id="nav-tab-display"
-            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer min-w-0 ${
               activeTab === 5
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
             <Tv className="w-4 h-4 shrink-0" />
-            <span>หน้าจอคิว (Tablet)</span>
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">หน้าจอคิว</span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 5 ? 'text-white/85' : 'text-stone-400'}`}>(Tablet)</span>
+            </div>
           </button>
 
           {/* Tab 4: ตั้งค่า */}
           <button
             onClick={() => setActiveTab(3)}
             id="nav-tab-settings"
-            className={`flex-1 py-3 px-2 rounded-2xl text-[11px] sm:text-xs font-bold transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 cursor-pointer ${
+            className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer min-w-0 ${
               activeTab === 3
                 ? 'bg-brand text-white shadow-md'
                 : 'text-stone-600 hover:text-stone-900 hover:bg-[#FDF8F3]'
             }`}
           >
             <SettingsIcon className="w-4 h-4 shrink-0" />
-            <span>ตั้งค่า (ช่างในร้าน)</span>
+            <div className="flex flex-col items-center leading-snug text-center">
+              <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ตั้งค่า</span>
+              <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 3 ? 'text-white/85' : 'text-stone-400'}`}>(ช่างในร้าน)</span>
+            </div>
           </button>
 
         </div>
