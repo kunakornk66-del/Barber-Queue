@@ -1051,6 +1051,37 @@ export default function App() {
           localStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
         }
       }
+
+      // Automatically purge any past-day bookings and leaves from Firestore and local state
+      setBookings(prevBookings => {
+        const past = prevBookings.filter(b => b.date < todayStr);
+        if (past.length > 0) {
+          past.forEach(b => {
+            deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', b.id)).catch(err => {
+              console.warn("Auto cleanup past booking error:", err);
+            });
+          });
+          const fresh = prevBookings.filter(b => b.date >= todayStr);
+          localStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(fresh));
+          return fresh;
+        }
+        return prevBookings;
+      });
+
+      setLeaves(prevLeaves => {
+        const past = prevLeaves.filter(l => l.date < todayStr);
+        if (past.length > 0) {
+          past.forEach(l => {
+            deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', l.id)).catch(err => {
+              console.warn("Auto cleanup past leave error:", err);
+            });
+          });
+          const fresh = prevLeaves.filter(l => l.date >= todayStr);
+          localStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(fresh));
+          return fresh;
+        }
+        return prevLeaves;
+      });
     };
 
     // Run immediately on load/change

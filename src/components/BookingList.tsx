@@ -36,20 +36,29 @@ export const getEffectiveStatus = (
   booking: Booking,
   currentTime?: Date
 ): 'waiting' | 'in-progress' | 'completed' | 'cancelled' => {
-  // Explicit statuses always take priority if explicitly set
+  // Explicit statuses take priority if cancelled or explicitly marked completed
   if (booking.status === 'cancelled') return 'cancelled';
   if (booking.status === 'completed') return 'completed';
-  if (booking.status === 'in-progress') return 'in-progress';
 
-  // If status is 'waiting' or undefined, calculate if current time is within [startTime, endTime)
   const now = currentTime || new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
   const todayStr = `${year}-${month}-${day}`;
+  const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
+  // Past dates automatically completed if not cancelled
+  if (booking.date < todayStr) {
+    return 'completed';
+  }
+
+  // Today
   if (booking.date === todayStr) {
-    const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    // If current time has reached or passed end time, automatically completed
+    if (currentHHMM >= booking.endTime) {
+      return 'completed';
+    }
+    // If current time is within booking slot [startTime, endTime)
     if (booking.startTime <= currentHHMM && currentHHMM < booking.endTime) {
       return 'in-progress';
     }
@@ -204,7 +213,7 @@ export default function BookingList({
     setEditCustomerPhone(booking.customerPhone);
     setEditRemarks(booking.remarks || '');
     setEditRecordedBy(booking.recordedBy || '');
-    setEditStatus(booking.status || 'waiting');
+    setEditStatus(getEffectiveStatus(booking, now));
     setEditError(null);
   };
 
