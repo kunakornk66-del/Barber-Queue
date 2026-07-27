@@ -80,6 +80,8 @@ export interface MascotAssistantProps {
   activeShopEmail?: string | null;
 }
 
+import { safeLocalStorage } from '../utils/storage';
+
 export default function MascotAssistant({ activeShopEmail }: MascotAssistantProps) {
   const [activeBubble, setActiveBubble] = useState<MascotEventDetail | null>(null);
   const [isInteractiveModalOpen, setIsInteractiveModalOpen] = useState(false);
@@ -91,8 +93,8 @@ export default function MascotAssistant({ activeShopEmail }: MascotAssistantProp
     if (!activeShopEmail) return;
     const today = new Date().toISOString().split('T')[0];
     const key = `daily_welcome_mascot_${activeShopEmail}_${today}`;
-    if (!localStorage.getItem(key)) {
-      localStorage.setItem(key, 'true');
+    if (!safeLocalStorage.getItem(key)) {
+      safeLocalStorage.setItem(key, 'true');
       const timer = setTimeout(() => {
         setActiveBubble({
           message: `เหมียววว~ ยินดีต้อนรับเข้าสู่ระบบร้าน ${activeShopEmail} งับ! ขอให้เป็นวันที่ลูกค้าแน่นร้าน ลุยกันเลย! 🐱💈✨`,

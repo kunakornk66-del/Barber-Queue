@@ -14,6 +14,7 @@ import CustomerSelfBookingView from './components/CustomerSelfBookingView';
 import MascotAssistant, { triggerMascotPopup } from './components/MascotAssistant';
 import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe } from 'lucide-react';
 import { DEFAULT_THEME_ID, applyThemePalette } from './theme';
+import { safeLocalStorage } from './utils/storage';
 
 // Import Firebase dependencies
 import { db, auth, googleProvider, handleFirestoreError, OperationType } from './firebase';
@@ -104,7 +105,7 @@ export default function App() {
     
     // Explicitly check for a fresh new shop setup or portal login URL request
     if (urlParams.get('new') === 'fresh' || urlParams.get('logout') === 'true') {
-      localStorage.removeItem('activeShopEmail');
+      safeLocalStorage.removeItem('activeShopEmail');
       try {
         const cleanUrl = new URL(window.location.href);
         cleanUrl.searchParams.delete('new');
@@ -145,11 +146,11 @@ export default function App() {
     }
 
     if (urlShop) {
-      localStorage.setItem('activeShopEmail', urlShop.trim().toLowerCase());
+      safeLocalStorage.setItem('activeShopEmail', urlShop.trim().toLowerCase());
       return urlShop.trim().toLowerCase();
     }
     
-    const saved = localStorage.getItem('activeShopEmail')?.trim().toLowerCase();
+    const saved = safeLocalStorage.getItem('activeShopEmail')?.trim().toLowerCase();
     if (saved) {
       return saved;
     }
@@ -410,7 +411,7 @@ export default function App() {
 
     // Load from local fallback first
     const localKey = `backup_settings_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
         const data = JSON.parse(savedLocal);
@@ -507,7 +508,7 @@ export default function App() {
             setThemePalette(DEFAULT_THEME_ID);
             applyThemePalette(DEFAULT_THEME_ID);
           }
-          localStorage.setItem(localKey, JSON.stringify(data));
+          safeLocalStorage.setItem(localKey, JSON.stringify(data));
           setFirestoreError(null); // Clear errors since connection is live
         }
       } else {
@@ -543,7 +544,7 @@ export default function App() {
     if (!activeShopEmail) return;
 
     const localKey = `backup_services_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
 
     if (savedLocal) {
       try {
@@ -560,7 +561,7 @@ export default function App() {
       setIsCloudOnline(true);
       if (snapshot.empty) {
         setServices([]);
-        localStorage.setItem(localKey, JSON.stringify([]));
+        safeLocalStorage.setItem(localKey, JSON.stringify([]));
         return;
       }
 
@@ -569,7 +570,7 @@ export default function App() {
         ...docSnap.data()
       } as ShopService));
       setServices(loaded);
-      localStorage.setItem(localKey, JSON.stringify(loaded));
+      safeLocalStorage.setItem(localKey, JSON.stringify(loaded));
     }, (error) => {
       console.warn("Loading services notice:", error);
       setIsCloudOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -632,7 +633,7 @@ export default function App() {
     // Optimistic update
     setServices(prev => {
       const updated = [...prev, newService];
-      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -651,7 +652,7 @@ export default function App() {
     // Optimistic update
     setServices(prev => {
       const updated = prev.filter(s => s.id !== serviceId);
-      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -678,7 +679,7 @@ export default function App() {
     // Optimistic update so UI updates immediately without waiting for server network roundtrip
     setServices(prev => {
       const updated = prev.map(s => s.id === cleanService.id ? cleanService : s);
-      localStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -752,7 +753,7 @@ export default function App() {
 
     // Load local fallback first
     const localKey = `backup_hairdressers_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
         setHairdressers(JSON.parse(savedLocal));
@@ -769,7 +770,7 @@ export default function App() {
       setIsCloudOnline(true);
       if (snapshot.empty) {
         setHairdressers([]);
-        localStorage.setItem(localKey, JSON.stringify([]));
+        safeLocalStorage.setItem(localKey, JSON.stringify([]));
         return;
       }
 
@@ -778,7 +779,7 @@ export default function App() {
         list.push(docSnap.data() as Hairdresser);
       });
       setHairdressers(list);
-      localStorage.setItem(localKey, JSON.stringify(list));
+      safeLocalStorage.setItem(localKey, JSON.stringify(list));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local hairdressers backup:", error);
@@ -794,7 +795,7 @@ export default function App() {
     if (!activeShopEmail) return;
 
     const localKey = `backup_recorders_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
 
     if (savedLocal) {
       try {
@@ -811,7 +812,7 @@ export default function App() {
       setIsCloudOnline(true);
       if (snapshot.empty) {
         setRecorders([]);
-        localStorage.setItem(localKey, JSON.stringify([]));
+        safeLocalStorage.setItem(localKey, JSON.stringify([]));
         return;
       }
 
@@ -820,7 +821,7 @@ export default function App() {
         list.push(docSnap.data() as StaffRecorder);
       });
       setRecorders(list);
-      localStorage.setItem(localKey, JSON.stringify(list));
+      safeLocalStorage.setItem(localKey, JSON.stringify(list));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local recorders backup:", error);
@@ -841,7 +842,7 @@ export default function App() {
     // Optimistic update
     setRecorders(prev => {
       const updated = [...prev, newRec];
-      localStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -858,7 +859,7 @@ export default function App() {
     // Optimistic update
     setRecorders(prev => {
       const updated = prev.filter(r => r.id !== id);
-      localStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -895,7 +896,7 @@ export default function App() {
 
     // Load local fallback first
     const localKey = `backup_bookings_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
         setBookings(JSON.parse(savedLocal));
@@ -938,7 +939,7 @@ export default function App() {
       });
 
       setBookings(list);
-      localStorage.setItem(localKey, JSON.stringify(list));
+      safeLocalStorage.setItem(localKey, JSON.stringify(list));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local bookings backup:", error);
@@ -955,7 +956,7 @@ export default function App() {
 
     // Load local fallback first
     const localKey = `backup_leaves_${activeShopEmail}`;
-    const savedLocal = localStorage.getItem(localKey);
+    const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
         setLeaves(JSON.parse(savedLocal));
@@ -987,7 +988,7 @@ export default function App() {
         return a.startTime.localeCompare(b.startTime);
       });
       setLeaves(activeLeaves);
-      localStorage.setItem(localKey, JSON.stringify(activeLeaves));
+      safeLocalStorage.setItem(localKey, JSON.stringify(activeLeaves));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local leaves backup:", error);
@@ -1004,7 +1005,7 @@ export default function App() {
 
     const checkAndResetBusyStatus = async () => {
       const todayStr = getTodayDateString();
-      const storedDate = localStorage.getItem(`last_checked_date_${activeShopEmail}`);
+      const storedDate = safeLocalStorage.getItem(`last_checked_date_${activeShopEmail}`);
       const isNewDay = storedDate && storedDate !== todayStr;
       const now = new Date();
 
@@ -1023,7 +1024,7 @@ export default function App() {
             }
           }
         }
-        localStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
+        safeLocalStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
       } else {
         // Check individual hairdressers for stale busy status (older than 60 mins or different day)
         for (const hd of hairdressers) {
@@ -1048,7 +1049,7 @@ export default function App() {
         }
         
         if (!storedDate) {
-          localStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
+          safeLocalStorage.setItem(`last_checked_date_${activeShopEmail}`, todayStr);
         }
       }
 
@@ -1062,7 +1063,7 @@ export default function App() {
             });
           });
           const fresh = prevBookings.filter(b => b.date >= todayStr);
-          localStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(fresh));
+          safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(fresh));
           return fresh;
         }
         return prevBookings;
@@ -1077,7 +1078,7 @@ export default function App() {
             });
           });
           const fresh = prevLeaves.filter(l => l.date >= todayStr);
-          localStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(fresh));
+          safeLocalStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(fresh));
           return fresh;
         }
         return prevLeaves;
@@ -1103,9 +1104,9 @@ export default function App() {
     setAdminPin(trimmed);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.adminPin = trimmed;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1129,9 +1130,9 @@ export default function App() {
 
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.themePalette = paletteId;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1164,7 +1165,7 @@ export default function App() {
 
     setPortalError(null);
     setActiveShopEmail(trimmed);
-    localStorage.setItem('activeShopEmail', trimmed);
+    safeLocalStorage.setItem('activeShopEmail', trimmed);
     updateUrlShop(trimmed);
 
     // Mascot welcome popup
@@ -1188,7 +1189,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setBookings(prev => {
       const updated = [...prev, newBooking];
-      localStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1209,7 +1210,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setBookings(prev => {
       const updated = prev.filter(b => b.id !== id);
-      localStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1230,7 +1231,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setBookings(prev => {
       const updated = prev.map(b => b.id === id ? { ...b, ...updatedData } : b);
-      localStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1253,7 +1254,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
       const updated = [...prev, newBarber];
-      localStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
     if (!activeRecorder) {
@@ -1277,7 +1278,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
       const updated = prev.map(h => h.id === id ? { ...h, avatarUrl: avatarUrl.trim() } : h);
-      localStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1298,7 +1299,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
       const updated = prev.filter(h => h.id !== id);
-      localStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1329,7 +1330,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
       const updated = prev.map(h => h.id === id ? { ...h, onLeave: !currentlyLeave } : h);
-      localStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1352,7 +1353,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setLeaves(prev => {
       const updated = [...prev, newRecord];
-      localStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1369,7 +1370,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setLeaves(prev => {
       const updated = prev.map(l => l.id === id ? { ...l, ...updatedFields } : l);
-      localStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1386,7 +1387,7 @@ export default function App() {
     // Optimistic Update & Local Backup
     setLeaves(prev => {
       const updated = prev.filter(l => l.id !== id);
-      localStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
+      safeLocalStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
 
@@ -1409,9 +1410,9 @@ export default function App() {
     setShopName(trimmed);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.shopName = trimmed;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1433,9 +1434,9 @@ export default function App() {
     setShopLogoUrl(logoUrl.trim());
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.shopLogoUrl = logoUrl.trim();
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1457,9 +1458,9 @@ export default function App() {
     setSlotDuration(duration);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.slotDuration = duration;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1481,9 +1482,9 @@ export default function App() {
     setShopHolidays(holidays);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.shopHolidays = holidays;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1505,9 +1506,9 @@ export default function App() {
     setShopOpenTime(openTime);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.shopOpenTime = openTime;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1529,9 +1530,9 @@ export default function App() {
     setShopCloseTime(closeTime);
     const localKey = `backup_settings_${activeShopEmail}`;
     try {
-      const data = JSON.parse(localStorage.getItem(localKey) || '{}');
+      const data = JSON.parse(safeLocalStorage.getItem(localKey) || '{}');
       data.shopCloseTime = closeTime;
-      localStorage.setItem(localKey, JSON.stringify(data));
+      safeLocalStorage.setItem(localKey, JSON.stringify(data));
     } catch (e) {
       console.warn("Local storage write skipped:", e);
     }
@@ -1549,7 +1550,7 @@ export default function App() {
     } catch (err) {
       console.warn("SignOut error:", err);
     }
-    localStorage.removeItem('activeShopEmail');
+    safeLocalStorage.removeItem('activeShopEmail');
     setActiveShopEmail(null);
     setShopSearchEmail('');
     const url = new URL(window.location.href);
