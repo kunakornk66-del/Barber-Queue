@@ -752,12 +752,26 @@ export default function App() {
   useEffect(() => {
     if (!activeShopEmail) return;
 
+    // Helper to sort hairdressers with Fah (ฟ้า) first
+    const sortFahFirst = (list: Hairdresser[]) => {
+      return [...list].sort((a, b) => {
+        const isAFah = (a.name || '').toLowerCase().includes('ฟ้า');
+        const isBFah = (b.name || '').toLowerCase().includes('ฟ้า');
+        if (isAFah && !isBFah) return -1;
+        if (!isAFah && isBFah) return 1;
+        return 0;
+      });
+    };
+
     // Load local fallback first
     const localKey = `backup_hairdressers_${activeShopEmail}`;
     const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
-        setHairdressers(JSON.parse(savedLocal));
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed)) {
+          setHairdressers(sortFahFirst(parsed));
+        }
       } catch (e) {
         console.warn("Error parsing local hairdressers backup:", e);
       }
@@ -779,8 +793,9 @@ export default function App() {
       snapshot.forEach((docSnap) => {
         list.push(docSnap.data() as Hairdresser);
       });
-      setHairdressers(list);
-      safeLocalStorage.setItem(localKey, JSON.stringify(list));
+      const sorted = sortFahFirst(list);
+      setHairdressers(sorted);
+      safeLocalStorage.setItem(localKey, JSON.stringify(sorted));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local hairdressers backup:", error);
@@ -1895,8 +1910,8 @@ export default function App() {
       </header>
 
       {/* Primary Navigation System */}
-      <nav className="max-w-3xl mx-auto px-4 mt-6 mb-8" id="tab-navigation">
-        <div className="bg-white p-1.5 rounded-3xl border border-stone-200/50 shadow-sm flex flex-wrap sm:flex-nowrap gap-1">
+      <nav className="max-w-4xl mx-auto px-3 sm:px-6 mt-4 md:mt-6 mb-6 md:mb-8" id="tab-navigation">
+        <div className="bg-white p-1.5 rounded-2xl sm:rounded-3xl border border-stone-200/80 shadow-sm grid grid-cols-3 sm:flex sm:flex-nowrap gap-1">
           
           {/* Tab 1: ลงคิวจอง */}
           <button

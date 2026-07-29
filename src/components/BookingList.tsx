@@ -1071,7 +1071,7 @@ export default function BookingList({
                               {/* Booking Card */}
                               <div
                                 id={`booking-card-${booking.id}`}
-                                className={`bg-white rounded-2xl border border-stone-200/90 shadow-2xs hover:shadow-xs transition-all p-3 sm:p-3.5 flex flex-col gap-2 relative ${
+                                className={`bg-white rounded-xl border border-stone-200/80 shadow-2xs hover:border-amber-400/60 transition-all p-2.5 sm:p-3 flex flex-col gap-1.5 relative ${
                                   isUpcoming60Min
                                     ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/20'
                                     : ''
@@ -1079,27 +1079,27 @@ export default function BookingList({
                               >
                                 {/* 60-Minute Alert Badge */}
                                 {alertInfo && (
-                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3 py-1 rounded-xl text-xs font-black shadow-2xs animate-pulse">
+                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-2.5 py-0.5 rounded-lg text-[10px] font-bold shadow-2xs">
                                     <span className="flex items-center gap-1.5 truncate text-white">
-                                      <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                                      <Sparkles className="w-3 h-3 text-amber-200 shrink-0" />
                                       <span>{alertInfo.label}</span>
                                     </span>
-                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[10px] font-mono font-bold shrink-0">
+                                    <span className="bg-stone-900 text-amber-300 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0">
                                       เตรียมพร้อม
                                     </span>
                                   </div>
                                 )}
 
-                                {/* Header Row: Big Time Badge on Left, Status Dropdown & Actions on Right */}
-                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
+                                {/* Header Row: Time Badge, Barber Tag, Status Dropdown & Actions */}
+                                <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-stone-100 pb-1.5">
                                   {/* Time Badge & Barber */}
                                   <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                                    <span className="bg-stone-900 text-amber-300 px-2.5 py-1 rounded-xl text-xs font-mono font-black shrink-0 border border-stone-800 shadow-2xs flex items-center gap-1">
+                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold shrink-0 border border-stone-800 shadow-2xs flex items-center gap-1">
                                       <Clock className="w-3 h-3 text-amber-400 shrink-0" />
                                       <span>{formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
                                     </span>
 
-                                    <span className={`px-2 py-0.5 rounded-lg text-[11px] font-bold shrink-0 flex items-center gap-1 ${
+                                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-medium shrink-0 flex items-center gap-1 ${
                                       booking.hairdresserId === null || booking.isAnyBarber
                                         ? 'bg-amber-100/90 text-amber-900 border border-amber-300/80'
                                         : 'bg-stone-100 text-stone-800 border border-stone-200'
@@ -1110,13 +1110,13 @@ export default function BookingList({
                                   </div>
 
                                   {/* Right side: Status Dropdown & Action buttons */}
-                                  <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     {/* Status Menu Dropdown */}
                                     <div className="relative shrink-0">
                                       <button
                                         type="button"
                                         onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
-                                        className={`px-2.5 py-1 rounded-lg text-xs font-black border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${getStatusBadgeStyle(effStatus)}`}
+                                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${getStatusBadgeStyle(effStatus)}`}
                                       >
                                         {getStatusIcon(effStatus)}
                                         <span>{getStatusLabel(effStatus)}</span>
@@ -1124,7 +1124,7 @@ export default function BookingList({
                                       </button>
 
                                       {openStatusMenuId === booking.id && (
-                                        <div className="absolute right-0 mt-1 w-36 bg-white rounded-xl shadow-xl border border-stone-200 py-1 z-30 animate-fade-in space-y-0.5">
+                                        <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border border-stone-200 py-1 z-30 animate-fade-in space-y-0.5">
                                           {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
                                             <button
                                               key={st}
@@ -1133,7 +1133,7 @@ export default function BookingList({
                                                 onUpdateBooking(booking.id, { status: st });
                                                 setOpenStatusMenuId(null);
                                               }}
-                                              className={`w-full px-2.5 py-1.5 text-left text-xs font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
+                                              className={`w-full px-2.5 py-1 text-left text-[11px] font-semibold flex items-center gap-1.5 hover:bg-stone-100 cursor-pointer ${
                                                 effStatus === st ? 'text-brand bg-brand/5' : 'text-stone-700'
                                               }`}
                                             >
@@ -1145,13 +1145,13 @@ export default function BookingList({
                                       )}
                                     </div>
 
-                                     {/* Actions: Edit & Delete */}
-                                    <div className="flex items-center gap-0.5 shrink-0 bg-stone-50 border border-stone-200/80 p-0.5 rounded-lg">
+                                    {/* Actions: Edit & Delete */}
+                                    <div className="flex items-center gap-0.5 shrink-0 bg-stone-50 border border-stone-200/80 p-0.5 rounded-md">
                                       <button
                                         type="button"
                                         id={`edit-btn-${booking.id}`}
                                         onClick={() => startEdit(booking)}
-                                        className="text-stone-500 hover:text-brand p-1 rounded-md hover:bg-white transition-all cursor-pointer"
+                                        className="text-stone-400 hover:text-brand p-1 rounded hover:bg-white transition-all cursor-pointer"
                                         title="แก้ไขคิวจอง"
                                       >
                                         <Pencil className="w-3 h-3" />
@@ -1160,7 +1160,7 @@ export default function BookingList({
                                         type="button"
                                         id={`delete-btn-${booking.id}`}
                                         onClick={() => setBookingToDelete(booking)}
-                                        className="text-stone-500 hover:text-red-600 hover:bg-red-50 p-1 rounded-md transition-all cursor-pointer"
+                                        className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-all cursor-pointer"
                                         title="ลบคิวจอง"
                                       >
                                         <Trash2 className="w-3 h-3 text-red-500" />
@@ -1170,52 +1170,52 @@ export default function BookingList({
                                 </div>
 
                                 {/* Main Section: Customer Name & Phone */}
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                                  <div className="flex items-center gap-2 min-w-0">
-                                    <div className="w-7 h-7 rounded-xl bg-amber-100/80 border border-amber-200/70 text-amber-900 flex items-center justify-center font-black text-xs shrink-0 shadow-2xs">
-                                      👤
-                                    </div>
-                                    <div className="min-w-0">
-                                      <h4 className="font-extrabold text-stone-900 text-sm sm:text-base leading-snug break-words">
-                                        คุณ{booking.customerName}
-                                      </h4>
-                                    </div>
+                                <div className="flex items-center justify-between gap-2 min-w-0 pt-0.5">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="text-xs text-stone-400 shrink-0">👤</span>
+                                    <h4 className="font-bold text-stone-900 text-xs sm:text-sm truncate">
+                                      คุณ{booking.customerName}
+                                    </h4>
                                   </div>
 
                                   {booking.customerPhone && (
-                                    <span
-                                      className="inline-flex items-center gap-1 text-[11px] text-stone-700 font-bold font-mono bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-lg self-start sm:self-center shrink-0"
+                                    <a
+                                      href={`tel:${booking.customerPhone}`}
+                                      className="inline-flex items-center gap-1 text-[11px] text-stone-700 font-medium font-mono bg-stone-50 hover:bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md shrink-0 transition-colors"
+                                      title="โทรหาลูกค้า"
                                     >
                                       <Phone className="w-3 h-3 text-stone-500 shrink-0" />
                                       <span>{booking.customerPhone}</span>
-                                    </span>
+                                    </a>
                                   )}
                                 </div>
 
                                 {/* Remarks, Slip, Recorded By */}
                                 {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
-                                  <div className="pt-1.5 border-t border-stone-100 text-xs flex flex-wrap items-center justify-between gap-1.5">
-                                    {booking.remarks ? (
-                                      <span className="text-brand font-bold italic truncate max-w-full bg-amber-50/80 border border-amber-200/60 px-2 py-0.5 rounded-md text-[11px]">
-                                        💡 "{booking.remarks}"
-                                      </span>
-                                    ) : (
-                                      <span className="text-stone-350 italic text-[11px]">ไม่มีหมายเหตุ</span>
-                                    )}
+                                  <div className="pt-1 border-t border-stone-100 text-[10px] flex flex-wrap items-center justify-between gap-1 text-stone-500">
+                                    <div className="min-w-0 flex-1">
+                                      {booking.remarks ? (
+                                        <span className="text-amber-800 font-medium italic truncate block" title={booking.remarks}>
+                                          💡 {booking.remarks}
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-300 italic">ไม่มีหมายเหตุ</span>
+                                      )}
+                                    </div>
 
-                                    <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                       {booking.paymentSlipUrl && (
                                         <button
                                           type="button"
                                           onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
-                                          className="inline-flex items-center gap-1 text-xs font-extrabold text-amber-950 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs"
+                                          className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-2xs"
                                         >
-                                          <span>🧾 ดูสลิป</span>
+                                          <span>🧾 สลิป</span>
                                         </button>
                                       )}
                                       {booking.recordedBy && (
-                                        <span className="text-[10px] font-bold text-stone-600 bg-stone-100 border border-stone-200/80 px-2 py-0.5 rounded-lg">
-                                          {booking.recordedBy.includes('ลูกค้าจองเอง') ? '📱 จองออนไลน์' : `โดย: ${booking.recordedBy}`}
+                                        <span className="text-[9px] text-stone-400 bg-stone-50 border border-stone-200/60 px-1.5 py-0.2 rounded">
+                                          {booking.recordedBy.includes('ลูกค้าจองเอง') ? '📱 จองออนไลน์' : booking.recordedBy}
                                         </span>
                                       )}
                                     </div>
@@ -1372,47 +1372,47 @@ export default function BookingList({
                               <div
                                 key={booking.id}
                                 id={`booking-card-${booking.id}`}
-                                className={`p-2.5 my-1.5 flex flex-col gap-1.5 transition-all text-xs rounded-xl border border-stone-200/90 bg-white hover:shadow-2xs ${
+                                className={`bg-white rounded-xl border border-stone-200/80 shadow-2xs hover:border-amber-400/60 transition-all p-2.5 my-1.5 flex flex-col gap-1.5 relative ${
                                   isUpcoming60Min
-                                    ? 'bg-gradient-to-r from-amber-500/15 via-amber-100/80 to-amber-50/60 border-2 border-amber-500/80 shadow-2xs ring-1 ring-amber-300/40 relative'
+                                    ? 'ring-2 ring-amber-400 border-amber-400 bg-amber-50/20'
                                     : ''
                                 }`}
                               >
                                 {/* 60-Minute Alert Badge */}
                                 {alertInfo && (
-                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-3 py-1 rounded-xl text-[10px] font-black shadow-2xs animate-pulse">
+                                  <div className="flex items-center justify-between gap-2 bg-gradient-to-r from-amber-500 to-amber-600 text-stone-900 px-2.5 py-0.5 rounded-lg text-[10px] font-bold shadow-2xs">
                                     <span className="flex items-center gap-1.5 truncate text-white">
-                                      <Sparkles className="w-3.5 h-3.5 text-amber-200 shrink-0" />
+                                      <Sparkles className="w-3 h-3 text-amber-200 shrink-0" />
                                       <span>{alertInfo.label}</span>
                                     </span>
-                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-lg text-[9px] font-mono font-bold shrink-0">
-                                      แจ้งเตือนทีมงานเตรียมพร้อม
+                                    <span className="bg-stone-900 text-amber-300 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold shrink-0">
+                                      เตรียมพร้อม
                                     </span>
                                   </div>
                                 )}
 
                                 {/* Row 1: Time Badge (Left) + Status Dropdown & Action Buttons (Right) */}
-                                <div className="flex items-center justify-between gap-2 border-b border-stone-100 pb-2">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="bg-stone-900 text-amber-300 px-2.5 py-1 rounded-xl text-xs font-mono font-black shrink-0 border border-stone-800 shadow-2xs flex items-center gap-1">
+                                <div className="flex items-center justify-between gap-1.5 border-b border-stone-100 pb-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                                    <span className="bg-stone-900 text-amber-300 px-2 py-0.5 rounded-md text-[11px] font-mono font-bold shrink-0 border border-stone-800 shadow-2xs flex items-center gap-1">
                                       <Clock className="w-3 h-3 text-amber-400 shrink-0" />
                                       <span>{formatThaiTime(booking.startTime)} - {formatThaiTime(booking.endTime)}</span>
                                     </span>
 
                                     {booking.isAnyBarber && (
-                                      <span className="bg-amber-100 text-amber-900 border border-amber-200 px-1.5 py-0.5 rounded-lg text-[10px] font-bold shrink-0">
+                                      <span className="bg-amber-100 text-amber-900 border border-amber-200/80 px-1.5 py-0.5 rounded-md text-[10px] font-medium shrink-0">
                                         ใครก็ได้
                                       </span>
                                     )}
                                   </div>
 
-                                  <div className="flex items-center gap-1.5 shrink-0">
+                                  <div className="flex items-center gap-1 shrink-0">
                                     {/* Status Menu Dropdown */}
                                     <div className="relative shrink-0">
                                       <button
                                         type="button"
                                         onClick={() => setOpenStatusMenuId(openStatusMenuId === booking.id ? null : booking.id)}
-                                        className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${getStatusBadgeStyle(effStatus)}`}
+                                        className={`px-2 py-0.5 rounded-md text-[11px] font-bold border transition-all flex items-center gap-1 cursor-pointer shadow-2xs ${getStatusBadgeStyle(effStatus)}`}
                                       >
                                         {getStatusIcon(effStatus)}
                                         <span>{getStatusLabel(effStatus)}</span>
@@ -1420,7 +1420,7 @@ export default function BookingList({
                                       </button>
 
                                       {openStatusMenuId === booking.id && (
-                                        <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-xl border border-stone-200 py-1.5 z-30 animate-fade-in space-y-0.5">
+                                        <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-xl border border-stone-200 py-1 z-30 animate-fade-in space-y-0.5">
                                           {(['waiting', 'in-progress', 'completed', 'cancelled'] as const).map((st) => (
                                             <button
                                               key={st}
@@ -1429,7 +1429,7 @@ export default function BookingList({
                                                 onUpdateBooking(booking.id, { status: st });
                                                 setOpenStatusMenuId(null);
                                               }}
-                                              className={`w-full px-3 py-1.5 text-left text-[11px] font-bold flex items-center gap-2 hover:bg-stone-100 cursor-pointer ${
+                                              className={`w-full px-2.5 py-1 text-left text-[11px] font-semibold flex items-center gap-1.5 hover:bg-stone-100 cursor-pointer ${
                                                 effStatus === st ? 'text-brand bg-brand/5' : 'text-stone-700'
                                               }`}
                                             >
@@ -1441,82 +1441,84 @@ export default function BookingList({
                                       )}
                                     </div>
 
-                                    <div className="flex items-center gap-0.5 shrink-0 bg-stone-50 border border-stone-200 p-0.5 rounded-lg">
+                                    <div className="flex items-center gap-0.5 shrink-0 bg-stone-50 border border-stone-200/80 p-0.5 rounded-md">
                                       <button
                                         type="button"
                                         id={`edit-btn-${booking.id}`}
                                         onClick={() => startEdit(booking)}
-                                        className="text-stone-400 hover:text-brand p-1 rounded-lg hover:bg-white transition-all cursor-pointer shrink-0"
+                                        className="text-stone-400 hover:text-brand p-1 rounded hover:bg-white transition-all cursor-pointer shrink-0"
                                         title="แก้ไขคิวจองนี้"
                                       >
-                                        <Pencil className="w-3.5 h-3.5" />
+                                        <Pencil className="w-3 h-3" />
                                       </button>
                                       <button
                                         type="button"
                                         id={`delete-btn-${booking.id}`}
                                         onClick={() => setBookingToDelete(booking)}
-                                        className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded-lg transition-all cursor-pointer shrink-0"
+                                        className="text-stone-400 hover:text-red-600 hover:bg-red-50 p-1 rounded transition-all cursor-pointer shrink-0"
                                         title="ลบคิวจองนี้"
                                       >
-                                        <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                        <Trash2 className="w-3 h-3 text-red-500" />
                                       </button>
                                     </div>
                                   </div>
                                 </div>
 
-                                {/* Row 2: Customer Name (Large & Bold) + Phone */}
-                                <div className="flex items-start justify-between gap-2 pt-0.5">
-                                  <div className="min-w-0 flex-1">
-                                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block leading-none mb-0.5">ลูกค้า</span>
-                                    <h4 className="font-black text-stone-900 text-sm sm:text-base leading-snug break-words">
+                                {/* Row 2: Customer Name + Phone */}
+                                <div className="flex items-center justify-between gap-2 min-w-0 pt-0.5">
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <span className="text-xs text-stone-400 shrink-0">👤</span>
+                                    <h4 className="font-bold text-stone-900 text-xs sm:text-sm truncate">
                                       คุณ{booking.customerName}
                                     </h4>
                                   </div>
 
                                   {booking.customerPhone && (
-                                    <span
-                                      className="text-xs text-stone-700 font-bold font-mono flex items-center gap-1 bg-stone-50 border border-stone-200 px-2.5 py-1 rounded-xl shrink-0 self-start"
+                                    <a
+                                      href={`tel:${booking.customerPhone}`}
+                                      className="inline-flex items-center gap-1 text-[11px] text-stone-700 font-medium font-mono bg-stone-50 hover:bg-stone-100 border border-stone-200 px-2 py-0.5 rounded-md shrink-0 transition-colors"
+                                      title="โทรหาลูกค้า"
                                     >
-                                      <Phone className="w-3 h-3 text-stone-500" />
+                                      <Phone className="w-3 h-3 text-stone-500 shrink-0" />
                                       <span>{booking.customerPhone}</span>
-                                    </span>
+                                    </a>
                                   )}
                                 </div>
 
                                 {/* Row 3: Remarks & Details */}
                                 {(booking.remarks || booking.recordedBy || booking.paymentSlipUrl) && (
-                                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-[11px] pt-1.5 border-t border-stone-100">
+                                  <div className="pt-1 border-t border-stone-100 text-[10px] flex flex-wrap items-center justify-between gap-1 text-stone-500">
                                     <div className="min-w-0 flex-1">
                                       {booking.remarks ? (
-                                        <span className="text-brand font-medium italic block truncate" title={booking.remarks}>
-                                          💡 "{booking.remarks}"
+                                        <span className="text-amber-800 font-medium italic truncate block" title={booking.remarks}>
+                                          💡 {booking.remarks}
                                         </span>
                                       ) : (
-                                        <span className="text-stone-350 italic text-[10px]">ไม่มีหมายเหตุ</span>
+                                        <span className="text-stone-300 italic">ไม่มีหมายเหตุ</span>
                                       )}
                                     </div>
 
-                                    <div className="flex items-center gap-1.5 shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                       {booking.paymentSlipUrl && (
                                         <button
                                           type="button"
                                           onClick={() => setViewSlipUrl(booking.paymentSlipUrl || null)}
-                                          className="inline-flex items-center gap-1 text-[9px] font-extrabold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs active:scale-95"
+                                          className="inline-flex items-center gap-0.5 text-[9px] font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300/80 px-1.5 py-0.5 rounded transition-all cursor-pointer shadow-2xs active:scale-95"
                                           title="คลิกเพื่อขยายดูรูปสลิปโอนเงิน"
                                         >
-                                          <span>🧾 ดูสลิป</span>
+                                          <span>🧾 สลิป</span>
                                         </button>
                                       )}
 
                                       {booking.recordedBy && (
                                         <div>
                                           {booking.recordedBy.includes('ลูกค้าจองเอง') ? (
-                                            <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-1.5 py-0.5 rounded-md shadow-2xs">
+                                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-1.5 py-0.2 rounded shadow-2xs">
                                               <Smartphone className="w-2.5 h-2.5 text-emerald-700" />
                                               <span>📱 จองเอง</span>
                                             </span>
                                           ) : (
-                                            <span className="text-[9px] font-medium text-stone-500 bg-stone-50 border border-stone-200 px-1.5 py-0.5 rounded-md">
+                                            <span className="text-[9px] text-stone-400 bg-stone-50 border border-stone-200/60 px-1.5 py-0.2 rounded">
                                               โดย: {booking.recordedBy}
                                             </span>
                                           )}
