@@ -82,7 +82,16 @@ export default function CustomerSelfBookingView({
     return services.length > 0 ? services[0] : null;
   });
   
-  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(null); // null = ช่างคนไหนก็ได้
+  const [selectedBarberId, setSelectedBarberId] = useState<string | null>(() => {
+    return hairdressers.length > 0 ? hairdressers[0].id : null;
+  });
+  const [isAnyBarber, setIsAnyBarber] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!selectedBarberId && hairdressers.length > 0) {
+      setSelectedBarberId(hairdressers[0].id);
+    }
+  }, [hairdressers, selectedBarberId]);
   
   // Date State (YYYY-MM-DD)
   const getTodayStr = () => {
@@ -373,21 +382,23 @@ export default function CustomerSelfBookingView({
     const endTimeStr = minutesToTime(endMins);
 
     // Determine target barber ID
-    let finalBarberId = selectedBarberId;
-    let isAny = false;
-
+    let finalBarberId = selectedBarberId || (hairdressers.length > 0 ? hairdressers[0].id : null);
     if (!finalBarberId) {
-      // Randomly assign or pick the first available barber for this slot
-      const freeBarbers = getAvailableBarbersForSlot(selectedStartTime);
-      if (freeBarbers.length === 0) {
-        setErrorMessage('ขออภัย รอบเวลานี้ช่างไม่ว่างแล้ว กรุณาเลือกรอบเวลาอื่น');
-        return;
-      }
-      finalBarberId = freeBarbers[0].id;
-      isAny = true;
-    } else {
-      // Re-verify barber is still available
-      if (!checkBarberAvailableForSlot(finalBarberId, selectedStartTime, serviceDuration)) {
+      setErrorMessage('ขออภัย ไม่พบช่างตัดผมในระบบ');
+      return;
+    }
+
+    // Verify barber availability or route to free barber if isAnyBarber is set
+    if (!checkBarberAvailableForSlot(finalBarberId, selectedStartTime, serviceDuration)) {
+      if (isAnyBarber) {
+        const freeBarbers = getAvailableBarbersForSlot(selectedStartTime);
+        if (freeBarbers.length > 0) {
+          finalBarberId = freeBarbers[0].id;
+        } else {
+          setErrorMessage('ขออภัย ช่างทุกคนไม่ว่างในรอบเวลานี้ กรุณาเลือกรอบเวลาอื่น');
+          return;
+        }
+      } else {
         setErrorMessage('ขออภัย ช่างที่คุณเลือกไม่ว่างในรอบเวลานี้ กรุณาเลือกรอบเวลาอื่น');
         return;
       }
@@ -408,7 +419,7 @@ export default function CustomerSelfBookingView({
         servicePrice: selectedService.price,
         paymentSlipUrl: paymentSlipUrl || undefined,
         recordedBy: 'ลูกค้าจองเองออนไลน์',
-        isAnyBarber: isAny,
+        isAnyBarber: isAnyBarber,
         status: 'waiting' as const
       };
 
@@ -739,29 +750,7 @@ export default function CustomerSelfBookingView({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    {/* Any Barber Option */}
-                    <button
-                      type="button"
-                      onClick={() => setSelectedBarberId(null)}
-                      className={`p-3.5 rounded-2xl border transition-all text-left flex flex-col justify-between gap-2 cursor-pointer active:scale-95 ${
-                        selectedBarberId === null
-                          ? 'bg-amber-500 text-stone-950 border-amber-500 font-extrabold shadow-sm'
-                          : 'bg-stone-50 hover:bg-stone-100 border-stone-200 text-stone-800'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xl">💈</span>
-                        {selectedBarberId === null && <Check className="w-4 h-4 font-black" />}
-                      </div>
-                      <div>
-                        <p className="text-xs font-black">ช่างคนไหนก็ได้</p>
-                        <p className={`text-[10px] mt-0.5 ${selectedBarberId === null ? 'text-stone-900' : 'text-stone-500'}`}>
-                          (ไม่ระบุช่าง)
-                        </p>
-                      </div>
-                    </button>
-
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {/* Barber Cards */}
                     {hairdressers.map((barber) => {
                       const isSelected = selectedBarberId === barber.id;
@@ -815,6 +804,20 @@ export default function CustomerSelfBookingView({
                         </button>
                       );
                     })}
+                  </div>
+
+                  {/* "ไม่ระบุช่าง" Checkbox toggle for customer */}
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2.5 p-3 rounded-2xl border border-amber-200/80 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition-all">
+                      <input
+                        type="checkbox"
+                        id="client-is-any-barber-checkbox"
+                        checked={isAnyBarber}
+                        onChange={(e) => setIsAnyBarber(e.target.checked)}
+                        className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600 shrink-0"
+                      />
+                      <span className="text-xs font-bold text-stone-900">ไม่ระบุช่าง (พร้อมสลับช่าง)</span>
+                    </label>
                   </div>
                 </div>
 

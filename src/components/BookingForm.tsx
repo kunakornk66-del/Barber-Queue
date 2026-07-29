@@ -51,6 +51,7 @@ interface BookingFormProps {
   bookings?: Booking[];
   leaves?: LeaveRecord[];
   onAddBooking: (booking: Omit<Booking, 'id' | 'createdAt'>) => void;
+  onUpdateBooking?: (id: string, updatedData: Partial<Omit<Booking, 'id' | 'createdAt'>>) => void;
   activeRecorder: string;
   setActiveRecorder: (name: string) => void;
   jumpToTab: (index: number) => void;
@@ -68,6 +69,7 @@ export default function BookingForm({
   bookings = [],
   leaves = [],
   onAddBooking,
+  onUpdateBooking,
   activeRecorder,
   setActiveRecorder,
   jumpToTab,
@@ -235,8 +237,90 @@ export default function BookingForm({
     }
   }, [shopOpenTime, slotDuration]);
   
-  // selectedHairdresserId: null represents "ไม่ระบุช่าง"
-  const [selectedHairdresserId, setSelectedHairdresserId] = useState<string | null>(null);
+  // selectedHairdresserId: always selects a specific hairdresser
+  const [selectedHairdresserId, setSelectedHairdresserId] = useState<string | null>(() => {
+    return hairdressers.length > 0 ? hairdressers[0].id : null;
+  });
+
+  // Checkbox state for "ลูกค้าไม่ระบุช่าง (ช่างคนไหนก็ได้ / พร้อมสลับช่าง)"
+  const [isAnyBarber, setIsAnyBarber] = useState<boolean>(false);
+
+  // Auto-select first hairdresser if state is empty
+  useEffect(() => {
+    if (!selectedHairdresserId && hairdressers.length > 0) {
+      setSelectedHairdresserId(hairdressers[0].id);
+    }
+  }, [hairdressers, selectedHairdresserId]);
+
+  // Helper to find an available hairdresser for a given slot
+  const findFreeHairdresser = (
+    targetDate: string,
+    targetStart: string,
+    targetEnd: string,
+    excludeBarberId?: string
+  ): Hairdresser | null => {
+    const available = hairdressers.filter(hd => {
+      if (excludeBarberId && hd.id === excludeBarberId) return false;
+      if (hd.onLeave) return false;
+
+      // Leave check
+      const hasLeave = leaves && leaves.some(l => 
+        l.hairdresserId === hd.id &&
+        l.date === targetDate &&
+        targetStart < l.endTime && l.startTime < targetEnd
+      );
+      if (hasLeave) return false;
+
+      // Booking check
+      const hasBooking = bookings && bookings.some(b => 
+        b.status !== 'cancelled' &&
+        b.hairdresserId === hd.id &&
+        b.date === targetDate &&
+        targetStart < b.endTime && b.startTime < targetEnd
+      );
+      if (hasBooking) return false;
+
+      // Busy at shop check
+      if (hd.busyUntil && hd.busyStart && targetDate === getTodayDateString()) {
+        const now = new Date();
+        const busyUntilDT = new Date(hd.busyUntil);
+        if (busyUntilDT > now) {
+          const busyStartDT = new Date(hd.busyStart);
+          const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+          const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+
+          const reqStartDT = new Date(`${targetDate}T${targetStart}:00`);
+          const reqEndDT = new Date(`${targetDate}T${targetEnd}:00`);
+          if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    if (available.length === 0) return null;
+
+    // Sort available by booking count ascending for load balancing
+    const bookingsCountMap = new Map<string, number>();
+    hairdressers.forEach(hd => bookingsCountMap.set(hd.id, 0));
+    if (bookings) {
+      bookings.forEach(b => {
+        if (b.date === targetDate && b.hairdresserId) {
+          bookingsCountMap.set(b.hairdresserId, (bookingsCountMap.get(b.hairdresserId) || 0) + 1);
+        }
+      });
+    }
+
+    available.sort((a, b) => {
+      const countA = bookingsCountMap.get(a.id) || 0;
+      const countB = bookingsCountMap.get(b.id) || 0;
+      return countA - countB;
+    });
+
+    return available[0];
+  };
 
   // Check if selected date is a shop holiday
   const isShopHolidaySelected = () => {
@@ -489,180 +573,140 @@ export default function BookingForm({
       return;
     }
 
-    let finalHairdresserId = selectedHairdresserId;
-    let isAnyBarberAssigned = false;
+    let finalHairdresserId = selectedHairdresserId || (hairdressers.length > 0 ? hairdressers[0].id : null);
+    if (!finalHairdresserId) {
+      setErrorMsg('⛔ กรุณาเลือกช่างตัดผมสำหรับรายการนี้ หรือเพิ่มช่างตัดผมในระบบก่อนทำการจอง');
+      return;
+    }
 
-    if (selectedHairdresserId === null) {
-      // Find all available hairdressers for date, startTime, and endTime
-      const availableHairdressers = hairdressers.filter(hd => {
-        // 1. Must not be on leave
-        if (hd.onLeave) return false;
+    // Validate if the selected hairdresser is currently busy at the shop
+    const selectedHairdresser = hairdressers.find(h => h.id === finalHairdresserId);
+    if (selectedHairdresser && selectedHairdresser.busyUntil && selectedHairdresser.busyStart && date === getTodayDateString()) {
+      const now = new Date();
+      const busyUntilDT = new Date(selectedHairdresser.busyUntil);
+      if (busyUntilDT > now) {
+        const busyStartDT = new Date(selectedHairdresser.busyStart);
+        const isFarFuture = busyUntilDT.getFullYear() >= 2030;
+        const effectiveEndDT = isFarFuture ? now : busyUntilDT;
 
-        // 2. Must not have overlapping leave record
-        const hasLeave = leaves && leaves.some(l => {
-          return l.hairdresserId === hd.id &&
-                 l.date === date &&
-                 startTime < l.endTime && l.startTime < endTime;
-        });
-        if (hasLeave) return false;
-
-        // 3. Must not have overlapping booking
-        const hasOverlapBooking = bookings && bookings.some(booking => {
-          if (booking.date !== date || booking.hairdresserId !== hd.id) {
-            return false;
-          }
-          const startA = startTime;
-          const endA = endTime;
-          const startB = booking.startTime;
-          const endB = booking.endTime;
-          return startA < endB && startB < endA;
-        });
-        if (hasOverlapBooking) return false;
-
-        // 4. Must not be currently busy at the physical shop
-        if (hd.busyUntil && hd.busyStart && date === getTodayDateString()) {
-          const now = new Date();
-          const busyUntilDT = new Date(hd.busyUntil);
-          if (busyUntilDT > now) {
-            const busyStartDT = new Date(hd.busyStart);
-            const isFarFuture = busyUntilDT.getFullYear() >= 2030;
-            const effectiveEndDT = isFarFuture ? now : busyUntilDT;
-
-            const reqStartDT = new Date(`${date}T${startTime}:00`);
-            const reqEndDT = new Date(`${date}T${endTime}:00`);
-            if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
-              return false;
-            }
-          }
+        const reqStartDT = new Date(`${date}T${startTime}:00`);
+        const reqEndDT = new Date(`${date}T${endTime}:00`);
+        if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
+          setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังติดให้บริการตัดผมหน้าร้านอยู่ ณ ขณะนี้ และยังไม่เสร็จงาน จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+          return;
         }
+      }
+    }
 
-        // 5. Must not be currently on break at the physical shop
-        if (hd.breakUntil && hd.breakStart && date === getTodayDateString()) {
-          const now = new Date();
-          const breakUntilDT = new Date(hd.breakUntil);
-          if (breakUntilDT > now) {
-            const breakStartDT = new Date(hd.breakStart);
-            const isFarFuture = breakUntilDT.getFullYear() >= 2030;
-            const effectiveEndDT = isFarFuture ? now : breakUntilDT;
+    // Validate if the selected hairdresser is currently on break at the shop
+    if (selectedHairdresser && selectedHairdresser.breakUntil && selectedHairdresser.breakStart && date === getTodayDateString()) {
+      const now = new Date();
+      const breakUntilDT = new Date(selectedHairdresser.breakUntil);
+      if (breakUntilDT > now) {
+        const breakStartDT = new Date(selectedHairdresser.breakStart);
+        const isFarFuture = breakUntilDT.getFullYear() >= 2030;
+        const effectiveEndDT = isFarFuture ? now : breakUntilDT;
 
-            const reqStartDT = new Date(`${date}T${startTime}:00`);
-            const reqEndDT = new Date(`${date}T${endTime}:00`);
-            if (reqStartDT < effectiveEndDT && breakStartDT < reqEndDT) {
-              return false;
-            }
-          }
+        const reqStartDT = new Date(`${date}T${startTime}:00`);
+        const reqEndDT = new Date(`${date}T${endTime}:00`);
+        if (reqStartDT < effectiveEndDT && breakStartDT < reqEndDT) {
+          setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังพักเบรกอยู่ ณ ขณะนี้ ยังไม่พร้อมให้บริการ จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+          return;
         }
+      }
+    }
 
-        return true;
+    // Validate if the selected hairdresser has a partial leave/closure
+    if (leaves && leaves.length > 0 && selectedHairdresser) {
+      const activeLeave = leaves.find(l => {
+        return l.hairdresserId === finalHairdresserId &&
+               l.date === date &&
+               startTime < l.endTime && l.startTime < endTime;
       });
-
-      if (availableHairdressers.length === 0) {
-        setErrorMsg('⚠️ ขออภัย ช่างทุกคนติดคิวหรือลางานในช่วงเวลานี้ ไม่สามารถจองแบบไม่ระบุช่างได้');
+      if (activeLeave) {
+        setErrorMsg(`ช่าง${selectedHairdresser.name} ติดปิดคิว/ลางาน ในช่วงเวลานี้ (${formatThaiTime(activeLeave.startTime)} - ${formatThaiTime(activeLeave.endTime)}) รายละเอียด: ${activeLeave.details}`);
         return;
       }
+    }
 
-      // Sort available hairdressers by booking count ascending to load balance
-      const bookingsCountMap = new Map<string, number>();
-      hairdressers.forEach(hd => bookingsCountMap.set(hd.id, 0));
-      if (bookings) {
-        bookings.forEach(b => {
-          if (b.date === date && b.hairdresserId) {
-            bookingsCountMap.set(b.hairdresserId, (bookingsCountMap.get(b.hairdresserId) || 0) + 1);
-          }
-        });
-      }
+    // Validate overlapping bookings & execute automatic re-assignment for "isAnyBarber"
+    if (bookings && bookings.length > 0) {
+      const hairdresserName = selectedHairdresser ? selectedHairdresser.name : 'ช่างที่เลือก';
 
-      availableHairdressers.sort((a, b) => {
-        const countA = bookingsCountMap.get(a.id) || 0;
-        const countB = bookingsCountMap.get(b.id) || 0;
-        return countA - countB;
+      const overlappingBooking = bookings.find(booking => {
+        if (booking.status === 'cancelled') return false;
+        if (booking.date !== date || booking.hairdresserId !== finalHairdresserId) {
+          return false;
+        }
+        return startTime < booking.endTime && booking.startTime < endTime;
       });
 
-      finalHairdresserId = availableHairdressers[0].id;
-      isAnyBarberAssigned = true;
-    } else {
-      // Validate if the selected hairdresser is currently busy at the shop
-      const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
-      if (selectedHairdresser && selectedHairdresser.busyUntil && selectedHairdresser.busyStart && date === getTodayDateString()) {
-        const now = new Date();
-        const busyUntilDT = new Date(selectedHairdresser.busyUntil);
-        if (busyUntilDT > now) {
-          const busyStartDT = new Date(selectedHairdresser.busyStart);
-          const isFarFuture = busyUntilDT.getFullYear() >= 2030;
-          const effectiveEndDT = isFarFuture ? now : busyUntilDT;
+      if (overlappingBooking) {
+        // SCENARIO 1: The existing booking was marked "isAnyBarber: true" (customer didn't specify barber)
+        if (overlappingBooking.isAnyBarber) {
+          // Find another free barber for the existing booking
+          const freeBarberForExisting = findFreeHairdresser(
+            overlappingBooking.date,
+            overlappingBooking.startTime,
+            overlappingBooking.endTime,
+            finalHairdresserId
+          );
 
-          const reqStartDT = new Date(`${date}T${startTime}:00`);
-          const reqEndDT = new Date(`${date}T${endTime}:00`);
-          if (reqStartDT < effectiveEndDT && busyStartDT < reqEndDT) {
-            setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังติดให้บริการตัดผมหน้าร้านอยู่ ณ ขณะนี้ และยังไม่เสร็จงาน จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
+          if (freeBarberForExisting) {
+            // Automatically reassign existing booking to the free barber!
+            if (onUpdateBooking) {
+              onUpdateBooking(overlappingBooking.id, { hairdresserId: freeBarberForExisting.id });
+            }
+            triggerMascotPopup(
+              `✨ ย้ายคิวเดิมของคุณ ${overlappingBooking.customerName || 'ลูกค้า'} (ไม่ระบุช่าง) ไปให้ช่าง ${freeBarberForExisting.name} เรียบร้อยแล้ว เพื่อให้คิวใหม่เข้าช่าง ${hairdresserName} ที่ระบุได้เลยค่ะ!`,
+              'ย้ายคิวให้อัตโนมัติ! ✂️',
+              'cheering',
+              5000
+            );
+          } else {
+            // No other barber is free for existing booking.
+            // Check if the NEW booking being added is "isAnyBarber"
+            if (isAnyBarber) {
+              const freeBarberForNew = findFreeHairdresser(date, startTime, endTime, finalHairdresserId);
+              if (freeBarberForNew) {
+                finalHairdresserId = freeBarberForNew.id;
+              } else {
+                setErrorMsg('⚠️ ขออภัย ช่างทุกคนติดคิวหรือลางานในช่วงเวลานี้ ไม่สามารถลงคิวเพิ่มได้');
+                return;
+              }
+            } else {
+              setOverlapModalData({
+                hairdresserName,
+                date,
+                startTime,
+                endTime,
+                existingBooking: overlappingBooking
+              });
+              return;
+            }
+          }
+        } else {
+          // SCENARIO 2: Existing booking specified this barber explicitly.
+          // Check if NEW booking is marked "isAnyBarber"
+          if (isAnyBarber) {
+            const freeBarberForNew = findFreeHairdresser(date, startTime, endTime, finalHairdresserId);
+            if (freeBarberForNew) {
+              finalHairdresserId = freeBarberForNew.id;
+            } else {
+              setErrorMsg('⚠️ ขออภัย ช่างทุกคนติดคิวหรือลางานในช่วงเวลานี้ ไม่สามารถจองแบบไม่ระบุช่างได้');
+              return;
+            }
+          } else {
+            // Both specified explicitly
+            setOverlapModalData({
+              hairdresserName,
+              date,
+              startTime,
+              endTime,
+              existingBooking: overlappingBooking
+            });
             return;
           }
-        }
-      }
-
-      // Validate if the selected hairdresser is currently on break at the shop
-      if (selectedHairdresser && selectedHairdresser.breakUntil && selectedHairdresser.breakStart && date === getTodayDateString()) {
-        const now = new Date();
-        const breakUntilDT = new Date(selectedHairdresser.breakUntil);
-        if (breakUntilDT > now) {
-          const breakStartDT = new Date(selectedHairdresser.breakStart);
-          const isFarFuture = breakUntilDT.getFullYear() >= 2030;
-          const effectiveEndDT = isFarFuture ? now : breakUntilDT;
-
-          const reqStartDT = new Date(`${date}T${startTime}:00`);
-          const reqEndDT = new Date(`${date}T${endTime}:00`);
-          if (reqStartDT < effectiveEndDT && breakStartDT < reqEndDT) {
-            setErrorMsg(`⚠️ ช่าง${selectedHairdresser.name} กำลังพักเบรกอยู่ ณ ขณะนี้ ยังไม่พร้อมให้บริการ จึงไม่สามารถลงคิวซ้อนในช่วงเวลานี้ได้`);
-            return;
-          }
-        }
-      }
-
-      // Validate if the selected hairdresser has a partial leave/closure
-      if (leaves && leaves.length > 0) {
-        const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
-        if (selectedHairdresser) {
-          const activeLeave = leaves.find(l => {
-            return l.hairdresserId === selectedHairdresserId &&
-                   l.date === date &&
-                   startTime < l.endTime && l.startTime < endTime;
-          });
-          if (activeLeave) {
-            setErrorMsg(`ช่าง${selectedHairdresser.name} ติดปิดคิว/ลางาน ในช่วงเวลานี้ (${formatThaiTime(activeLeave.startTime)} - ${formatThaiTime(activeLeave.endTime)}) รายละเอียด: ${activeLeave.details}`);
-            return;
-          }
-        }
-      }
-
-      // Validate overlapping bookings for the selected hairdresser
-      if (bookings && bookings.length > 0) {
-        const selectedHairdresser = hairdressers.find(h => h.id === selectedHairdresserId);
-        const hairdresserName = selectedHairdresser ? selectedHairdresser.name : 'ช่างที่เลือก';
-
-        const overlappingBooking = bookings.find(booking => {
-          // Must be the same date and same hairdresser
-          if (booking.date !== date || booking.hairdresserId !== selectedHairdresserId) {
-            return false;
-          }
-
-          // Overlap check: startA < endB && startB < endA
-          const startA = startTime;
-          const endA = endTime;
-          const startB = booking.startTime;
-          const endB = booking.endTime;
-
-          return startA < endB && startB < endA;
-        });
-
-        if (overlappingBooking) {
-          setOverlapModalData({
-            hairdresserName,
-            date,
-            startTime,
-            endTime,
-            existingBooking: overlappingBooking
-          });
-          return;
         }
       }
     }
@@ -677,7 +721,7 @@ export default function BookingForm({
       customerPhone: customerPhone.trim() || '-',
       remarks: remarks.trim(),
       recordedBy: activeRecorder,
-      isAnyBarber: isAnyBarberAssigned,
+      isAnyBarber: isAnyBarber,
       status: 'waiting'
     });
 
@@ -685,6 +729,7 @@ export default function BookingForm({
     setCustomerName('');
     setCustomerPhone('');
     setRemarks('');
+    setIsAnyBarber(false);
     
     // Trigger success feedback
     setShowSuccess(true);
@@ -817,33 +862,15 @@ export default function BookingForm({
         <div className="space-y-2.5">
           <div className="flex justify-between items-center">
             <label className="text-xs font-bold text-stone-800 uppercase tracking-wider flex items-center gap-1.5">
-              <UserCheck className="w-4 h-4 text-brand" /> ช่างตัดผมสำหรับรายการนี้
+              <UserCheck className="w-4 h-4 text-brand" /> เลือกช่างตัดผมประจำคิวนี้ <span className="text-red-500">*</span>
             </label>
             <span className="text-[10px] text-brand bg-brand-light px-2.5 py-1 rounded-md font-bold border border-brand/20">
-              {selectedHairdresserId === null ? "ตัดกับใครก็ได้" : `ช่าง ${hairdressers.find(h => h.id === selectedHairdresserId)?.name || ""}`}
+              {`ช่าง ${hairdressers.find(h => h.id === selectedHairdresserId)?.name || "ที่เลือก"}`}
             </span>
           </div>
 
           {/* Button Selector Layout */}
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            {/* Anyone option */}
-            <button
-              type="button"
-              id="hairdresser-any-btn"
-              onClick={() => setSelectedHairdresserId(null)}
-              className={`px-4 py-3 rounded-2xl text-xs font-semibold flex flex-col items-center justify-center gap-1.5 border-2 transition-all cursor-pointer ${
-                selectedHairdresserId === null
-                  ? 'border-brand bg-brand-light text-brand-dark ring-2 ring-brand/10 shadow-sm'
-                  : 'border-stone-200 bg-stone-50/30 text-stone-700 hover:bg-stone-50 hover:border-stone-300'
-              }`}
-            >
-              <div className="w-7 h-7 rounded-full bg-brand/10 flex items-center justify-center text-brand">
-                💇‍♂️
-              </div>
-              <span className="text-center font-bold">ไม่ระบุช่าง</span>
-              <span className="text-[9px] font-normal text-stone-500 opacity-80">(ใครก็ได้)</span>
-            </button>
-
             {/* Individual hairdressers */}
             {hairdressers.map((hd) => {
               const isOnLeave = !!hd.onLeave;
@@ -913,7 +940,7 @@ export default function BookingForm({
                     {hd.name.slice(0, 2)}
                   </div>
                   <span className="truncate max-w-full text-center font-bold">ช่าง{hd.name}</span>
-                  <span className="text-[9px] font-normal text-stone-400">ระบุเจาะจง</span>
+                  <span className="text-[9px] font-normal text-stone-400">ระบุประจำคิว</span>
                 </button>
               );
             })}
@@ -931,6 +958,20 @@ export default function BookingForm({
                 </button>
               </div>
             )}
+          </div>
+
+          {/* "ไม่ระบุช่าง" Checkbox option */}
+          <div className="pt-1">
+            <label className="flex items-center gap-2.5 p-3 rounded-2xl border border-amber-200/80 bg-amber-50/60 hover:bg-amber-100/70 cursor-pointer transition-all">
+              <input
+                type="checkbox"
+                id="is-any-barber-checkbox"
+                checked={isAnyBarber}
+                onChange={(e) => setIsAnyBarber(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer accent-amber-600 shrink-0"
+              />
+              <span className="text-xs font-bold text-stone-900">ลูกค้าไม่ระบุช่าง (พร้อมสลับช่าง)</span>
+            </label>
           </div>
         </div>
 

@@ -29,6 +29,17 @@ import {
   updateDoc
 } from 'firebase/firestore';
 
+// Helper to strip undefined values before saving to Firestore
+const sanitizeForFirestore = <T extends Record<string, any>>(obj: T): Record<string, any> => {
+  const result: Record<string, any> = {};
+  Object.keys(obj).forEach(key => {
+    if (obj[key] !== undefined) {
+      result[key] = obj[key];
+    }
+  });
+  return result;
+};
+
 // Fallback seed initial hairdressers if Firestore is totally empty
 const SEED_HAIRDRESSERS: Hairdresser[] = [
   { id: 'hd-1', name: 'เอ็ม (M)' },
@@ -1210,7 +1221,7 @@ export default function App() {
     });
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'bookings', id), newBooking);
+      await setDoc(doc(db, 'stores', activeShopEmail, 'bookings', id), sanitizeForFirestore(newBooking));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `stores/${activeShopEmail}/bookings/${id}`, false);
     }
@@ -1252,7 +1263,7 @@ export default function App() {
     });
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'bookings', id), updatedData, { merge: true });
+      await setDoc(doc(db, 'stores', activeShopEmail, 'bookings', id), sanitizeForFirestore(updatedData), { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/bookings/${id}`, false);
     }
@@ -1265,7 +1276,10 @@ export default function App() {
       return;
     }
     const id = `hd-${Date.now()}`;
-    const newBarber: Hairdresser = { id, name, avatarUrl: avatarUrl ? avatarUrl.trim() : undefined };
+    const newBarber: Hairdresser = { id, name };
+    if (avatarUrl && avatarUrl.trim()) {
+      newBarber.avatarUrl = avatarUrl.trim();
+    }
 
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
@@ -1278,7 +1292,7 @@ export default function App() {
     }
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'hairdressers', id), newBarber);
+      await setDoc(doc(db, 'stores', activeShopEmail, 'hairdressers', id), sanitizeForFirestore(newBarber));
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `stores/${activeShopEmail}/hairdressers/${id}`, false);
     }
@@ -1374,7 +1388,7 @@ export default function App() {
     });
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'leaves', id), newRecord);
+      await setDoc(doc(db, 'stores', activeShopEmail, 'leaves', id), sanitizeForFirestore(newRecord));
     } catch (e) {
       handleFirestoreError(e, OperationType.CREATE, `stores/${activeShopEmail}/leaves/${id}`, false);
     }
@@ -1391,7 +1405,7 @@ export default function App() {
     });
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'leaves', id), updatedFields, { merge: true });
+      await setDoc(doc(db, 'stores', activeShopEmail, 'leaves', id), sanitizeForFirestore(updatedFields), { merge: true });
     } catch (e) {
       handleFirestoreError(e, OperationType.UPDATE, `stores/${activeShopEmail}/leaves/${id}`, false);
     }
@@ -2050,6 +2064,7 @@ export default function App() {
               bookings={bookings}
               leaves={leaves}
               onAddBooking={handleAddBooking}
+              onUpdateBooking={handleUpdateBooking}
               activeRecorder={activeRecorder}
               setActiveRecorder={setActiveRecorder}
               jumpToTab={setActiveTab}
