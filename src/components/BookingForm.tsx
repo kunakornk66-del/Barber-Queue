@@ -95,23 +95,32 @@ export default function BookingForm({
 
   const getNextRoundedSlotDate = (dateObj: Date): Date => {
     const rounded = new Date(dateObj);
-    const minutes = rounded.getMinutes();
-    if (minutes === 0 || minutes === 30) {
-      rounded.setSeconds(0, 0);
-    } else if (minutes < 30) {
-      rounded.setMinutes(30, 0, 0);
-    } else {
-      rounded.setHours(rounded.getHours() + 1, 0, 0, 0);
-    }
+    const totalMinutes = rounded.getHours() * 60 + rounded.getMinutes() + rounded.getSeconds() / 60;
+    const dur = slotDuration || 30;
+    const roundedMinutes = Math.round(totalMinutes / dur) * dur;
+
+    const roundedHours = Math.floor(roundedMinutes / 60);
+    const roundedMins = roundedMinutes % 60;
+    rounded.setHours(roundedHours, roundedMins, 0, 0);
 
     // Check if earlier than shopOpenTime
-    const [openH, openM] = shopOpenTime.split(':').map(Number);
-    const roundedMinutes = rounded.getHours() * 60 + rounded.getMinutes();
-    const openMinutes = openH * 60 + openM;
-    if (roundedMinutes < openMinutes) {
-      rounded.setHours(openH, openM, 0, 0);
+    if (shopOpenTime) {
+      const [openH, openM] = shopOpenTime.split(':').map(Number);
+      const openMinutes = openH * 60 + openM;
+      if (roundedMinutes < openMinutes) {
+        rounded.setHours(openH, openM, 0, 0);
+      }
     }
     return rounded;
+  };
+
+  const getSlotStart = (dateObj: Date): Date => {
+    const slot = new Date(dateObj);
+    const dur = slotDuration || 30;
+    const totalMinutes = slot.getHours() * 60 + slot.getMinutes();
+    const slotMins = Math.floor(totalMinutes / dur) * dur;
+    slot.setHours(Math.floor(slotMins / 60), slotMins % 60, 0, 0);
+    return slot;
   };
 
   const checkIsBusySlot = (hd: Hairdresser, slotStartStr: string, slotEndStr: string) => {
@@ -127,10 +136,11 @@ export default function BookingForm({
     const slotEndDT = new Date(`${date}T${slotEndStr}:00`);
     
     const busyStartDT = new Date(hd.busyStart);
+    const slotBusyStartDT = getSlotStart(busyStartDT);
     const isFarFuture = busyUntilDate.getFullYear() >= 2030;
     const effectiveEndDT = isFarFuture ? now : busyUntilDate;
 
-    return slotStartDT < effectiveEndDT && busyStartDT < slotEndDT;
+    return slotStartDT < effectiveEndDT && slotBusyStartDT < slotEndDT;
   };
 
   const checkIsBreakSlot = (hd: Hairdresser, slotStartStr: string, slotEndStr: string) => {
@@ -146,10 +156,11 @@ export default function BookingForm({
     const slotEndDT = new Date(`${date}T${slotEndStr}:00`);
     
     const breakStartDT = new Date(hd.breakStart);
+    const slotBreakStartDT = getSlotStart(breakStartDT);
     const isFarFuture = breakUntilDate.getFullYear() >= 2030;
     const effectiveEndDT = isFarFuture ? now : breakUntilDate;
 
-    return slotStartDT < effectiveEndDT && breakStartDT < slotEndDT;
+    return slotStartDT < effectiveEndDT && slotBreakStartDT < slotEndDT;
   };
 
   const handleToggleBusy = async (hairdresserId: string, setBusy: boolean, durationMinutes: number = 30) => {
@@ -158,10 +169,8 @@ export default function BookingForm({
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
       if (setBusy) {
         const now = new Date();
-        const roundedStart = getNextRoundedSlotDate(now);
-        const busyStart = roundedStart.toISOString();
-        // Set busy status for 60 minutes maximum (will auto-reset after 60 mins if not cleared manually)
-        const busyUntil = new Date(roundedStart.getTime() + 60 * 60 * 1000).toISOString();
+        const busyStart = now.toISOString(); // Actual press timestamp e.g. 12:39
+        const busyUntil = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
         await updateDoc(hairdresserRef, {
           busyStart,
           busyUntil,
@@ -186,10 +195,8 @@ export default function BookingForm({
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
       if (setBreak) {
         const now = new Date();
-        const roundedStart = getNextRoundedSlotDate(now);
-        const breakStart = roundedStart.toISOString();
-        // Set break status for 30 minutes maximum (will auto-reset after 30 mins if not cleared manually)
-        const breakUntil = new Date(roundedStart.getTime() + 30 * 60 * 1000).toISOString();
+        const breakStart = now.toISOString(); // Actual press timestamp e.g. 12:39
+        const breakUntil = new Date(now.getTime() + 30 * 60 * 1000).toISOString();
         await updateDoc(hairdresserRef, {
           breakStart,
           breakUntil,

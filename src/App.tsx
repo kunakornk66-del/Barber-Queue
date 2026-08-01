@@ -1059,7 +1059,8 @@ export default function App() {
           
           const busyDateStr = hd.busyStart.split('T')[0];
           const elapsedMs = now.getTime() - new Date(hd.busyStart).getTime();
-          const isStale = busyDateStr < todayStr || elapsedMs >= 60 * 60 * 1000;
+          const isBusyUntilPassed = hd.busyUntil ? new Date(hd.busyUntil) <= now : false;
+          const isStale = busyDateStr < todayStr || (hd.busyUntil ? isBusyUntilPassed : elapsedMs >= 60 * 60 * 1000);
 
           if (isStale) {
             console.log(`Stale busy status detected for ${hd.name}, resetting...`);
