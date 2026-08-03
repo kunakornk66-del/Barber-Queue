@@ -76,7 +76,7 @@ export default function App() {
   const [shopHolidays, setShopHolidays] = useState<number[]>([]); // Sunday = 0, Monday = 1, etc.
   const [shopOpenTime, setShopOpenTime] = useState<string>('10:00');
   const [shopCloseTime, setShopCloseTime] = useState<string>('21:00');
-  const [enableSelfBooking, setEnableSelfBooking] = useState<boolean>(true);
+  const [enableSelfBooking, setEnableSelfBooking] = useState<boolean>(false);
   const [requirePaymentSlip, setRequirePaymentSlip] = useState<boolean>(false);
   const [promptPayNumber, setPromptPayNumber] = useState<string>('');
   const [promptPayName, setPromptPayName] = useState<string>('');
@@ -434,6 +434,11 @@ export default function App() {
         if (data.shopHolidays !== undefined) setShopHolidays(data.shopHolidays || []);
         if (data.shopOpenTime) setShopOpenTime(data.shopOpenTime);
         if (data.shopCloseTime) setShopCloseTime(data.shopCloseTime);
+        if (data.enableSelfBooking !== undefined) {
+          setEnableSelfBooking(Boolean(data.enableSelfBooking));
+        } else {
+          setEnableSelfBooking(false);
+        }
         if (data.themePalette) {
           setThemePalette(data.themePalette);
           applyThemePalette(data.themePalette);
@@ -449,6 +454,7 @@ export default function App() {
       setShopHolidays([]);
       setShopOpenTime('10:00');
       setShopCloseTime('21:00');
+      setEnableSelfBooking(false);
       setThemePalette(DEFAULT_THEME_ID);
       applyThemePalette(DEFAULT_THEME_ID);
     }
@@ -496,7 +502,7 @@ export default function App() {
           if (data.enableSelfBooking !== undefined) {
             setEnableSelfBooking(Boolean(data.enableSelfBooking));
           } else {
-            setEnableSelfBooking(true);
+            setEnableSelfBooking(false);
           }
           if (data.requirePaymentSlip !== undefined) {
             setRequirePaymentSlip(Boolean(data.requirePaymentSlip));
