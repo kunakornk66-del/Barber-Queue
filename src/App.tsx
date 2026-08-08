@@ -199,9 +199,21 @@ export default function App() {
         setSubscription(snap.data() as ShopSubscription);
       } else {
         const todayStr = getTodayDateStr();
+        let currentShopName = cleanEmail;
+        try {
+          const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
+          if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
+            currentShopName = storeConfigSnap.data().shopName;
+          } else if (shopName && shopName !== 'BARBER PRO') {
+            currentShopName = shopName;
+          }
+        } catch (e) {
+          if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
+        }
+
         const newPendingSub: ShopSubscription = {
           email: cleanEmail,
-          shopName: shopName || cleanEmail,
+          shopName: currentShopName,
           status: 'pending',
           startDate: todayStr,
           expiryDate: todayStr,
@@ -252,9 +264,21 @@ export default function App() {
           setSubscription(docSnap.data() as ShopSubscription);
         } else {
           const todayStr = getTodayDateStr();
+          let currentShopName = cleanEmail;
+          try {
+            const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
+            if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
+              currentShopName = storeConfigSnap.data().shopName;
+            } else if (shopName && shopName !== 'BARBER PRO') {
+              currentShopName = shopName;
+            }
+          } catch (e) {
+            if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
+          }
+
           const newPendingSub: ShopSubscription = {
             email: cleanEmail,
-            shopName: shopName || cleanEmail,
+            shopName: currentShopName,
             status: 'pending',
             startDate: todayStr,
             expiryDate: todayStr,
@@ -593,6 +617,8 @@ export default function App() {
         if (data) {
           if (data.shopName) {
             setShopName(data.shopName);
+            const cleanEmail = activeShopEmail.trim().toLowerCase();
+            setDoc(doc(db, 'subscriptions', cleanEmail), { shopName: data.shopName, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
           }
           if (data.adminPin) {
             setAdminPin(data.adminPin);
@@ -1580,7 +1606,9 @@ export default function App() {
     }
 
     try {
-      await setDoc(doc(db, 'stores', activeShopEmail, 'settings', 'config'), { shopName: trimmed }, { merge: true });
+      const cleanEmail = activeShopEmail.trim().toLowerCase();
+      await setDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'), { shopName: trimmed }, { merge: true });
+      await setDoc(doc(db, 'subscriptions', cleanEmail), { shopName: trimmed, updatedAt: new Date().toISOString() }, { merge: true });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/settings/config`, false);
     }

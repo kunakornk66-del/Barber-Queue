@@ -25,6 +25,7 @@ import {
   setDoc,
   deleteDoc,
   getDocs,
+  getDoc,
   onSnapshot
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -93,7 +94,7 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ curren
     const subRef = collection(db, 'subscriptions');
     const unsubscribe = onSnapshot(
       subRef,
-      (snapshot) => {
+      async (snapshot) => {
         const list: ShopSubscription[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as ShopSubscription;
@@ -102,9 +103,33 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ curren
             email: docSnap.id.toLowerCase() || data.email?.toLowerCase(),
           });
         });
+
+        // Enrich each subscription with real shopName from stores/{cleanEmail}/settings/config if available
+        const enrichedList = await Promise.all(
+          list.map(async (subItem) => {
+            try {
+              const configSnap = await getDoc(doc(db, 'stores', subItem.email, 'settings', 'config'));
+              if (configSnap.exists()) {
+                const conf = configSnap.data();
+                if (conf?.shopName && typeof conf.shopName === 'string' && conf.shopName.trim()) {
+                  const actualName = conf.shopName.trim();
+                  if (subItem.shopName !== actualName) {
+                    // Sync back to subscriptions document in Firestore
+                    setDoc(doc(db, 'subscriptions', subItem.email), { shopName: actualName, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+                  }
+                  return { ...subItem, shopName: actualName };
+                }
+              }
+            } catch (e) {
+              console.warn('Could not fetch store config for:', subItem.email, e);
+            }
+            return subItem;
+          })
+        );
+
         // Sort by updatedAt or email
-        list.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
-        setSubscriptions(list);
+        enrichedList.sort((a, b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+        setSubscriptions(enrichedList);
         setLoading(false);
       },
       (error) => {
@@ -263,6 +288,9 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ curren
     try {
       const docRef = doc(db, 'subscriptions', cleanEmail);
       await setDoc(docRef, newSub);
+
+      const storeConfigRef = doc(db, 'stores', cleanEmail, 'settings', 'config');
+      await setDoc(storeConfigRef, { shopName: newSub.shopName }, { merge: true });
     } catch (err) {
       console.error('Error creating subscription:', err);
       showToast('เกิดข้อผิดพลาดในการบันทึกลงคลาวด์');
@@ -309,6 +337,11 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ curren
     try {
       const docRef = doc(db, 'subscriptions', cleanEmail);
       await setDoc(docRef, updatedData, { merge: true });
+
+      if (updatedData.shopName) {
+        const storeConfigRef = doc(db, 'stores', cleanEmail, 'settings', 'config');
+        await setDoc(storeConfigRef, { shopName: updatedData.shopName }, { merge: true });
+      }
     } catch (err) {
       console.error('Error updating subscription:', err);
       showToast('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
