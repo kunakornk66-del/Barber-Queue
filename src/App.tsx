@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Hairdresser, Booking, LeaveRecord, StaffRecorder, ShopService } from './types';
+import { Hairdresser, Booking, LeaveRecord, StaffRecorder, ShopService, ShopSubscription } from './types';
 import BookingForm from './components/BookingForm';
 import BookingList from './components/BookingList';
 import LeaveManager from './components/LeaveManager';
@@ -12,8 +12,10 @@ import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
 import CustomerSelfBookingView from './components/CustomerSelfBookingView';
 import TimetableGrid from './components/TimetableGrid';
+import { AccessControlGuard } from './components/AccessControlGuard';
+import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import MascotAssistant, { triggerMascotPopup } from './components/MascotAssistant';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe, LayoutGrid } from 'lucide-react';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe, LayoutGrid, Shield } from 'lucide-react';
 import { DEFAULT_THEME_ID, applyThemePalette } from './theme';
 import { safeLocalStorage } from './utils/storage';
 
@@ -24,6 +26,7 @@ import {
   collection, 
   onSnapshot, 
   doc, 
+  getDoc,
   setDoc, 
   deleteDoc,
   updateDoc
@@ -169,6 +172,128 @@ export default function App() {
     // Default to null to show login portal on first visit
     return null;
   });
+
+  // Master Super Admin & Subscription System logic
+  const MASTER_SUPER_ADMIN_EMAIL = 'kunakorn.k66@gmail.com';
+  const isMasterSuperAdmin = activeShopEmail?.trim().toLowerCase() === MASTER_SUPER_ADMIN_EMAIL;
+
+  const [subscription, setSubscription] = useState<ShopSubscription | null>(null);
+  const [subLoading, setSubLoading] = useState<boolean>(true);
+
+  const getTodayDateStr = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const refetchSubscription = async () => {
+    if (!activeShopEmail || isMasterSuperAdmin) return;
+    setSubLoading(true);
+    try {
+      const cleanEmail = activeShopEmail.trim().toLowerCase();
+      const docRef = doc(db, 'subscriptions', cleanEmail);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setSubscription(snap.data() as ShopSubscription);
+      } else {
+        const todayStr = getTodayDateStr();
+        const newPendingSub: ShopSubscription = {
+          email: cleanEmail,
+          shopName: shopName || cleanEmail,
+          status: 'pending',
+          startDate: todayStr,
+          expiryDate: todayStr,
+          notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        await setDoc(docRef, newPendingSub);
+        setSubscription(newPendingSub);
+      }
+    } catch (err) {
+      console.error('Error refetching subscription:', err);
+    } finally {
+      setSubLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!activeShopEmail) {
+      setSubscription(null);
+      setSubLoading(false);
+      return;
+    }
+
+    if (isMasterSuperAdmin) {
+      setSubscription({
+        email: MASTER_SUPER_ADMIN_EMAIL,
+        shopName: 'Master Super Admin',
+        status: 'approved',
+        startDate: '2020-01-01',
+        expiryDate: '2099-12-31',
+        notes: 'Master Super Admin Access (Bypass)',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setSubLoading(false);
+      return;
+    }
+
+    setSubLoading(true);
+    const cleanEmail = activeShopEmail.trim().toLowerCase();
+    const docRef = doc(db, 'subscriptions', cleanEmail);
+
+    const unsubscribe = onSnapshot(
+      docRef,
+      async (docSnap) => {
+        if (docSnap.exists()) {
+          setSubscription(docSnap.data() as ShopSubscription);
+        } else {
+          const todayStr = getTodayDateStr();
+          const newPendingSub: ShopSubscription = {
+            email: cleanEmail,
+            shopName: shopName || cleanEmail,
+            status: 'pending',
+            startDate: todayStr,
+            expiryDate: todayStr,
+            notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+          try {
+            await setDoc(docRef, newPendingSub);
+          } catch (e) {
+            console.warn('Error auto-creating pending subscription doc:', e);
+          }
+          setSubscription(newPendingSub);
+        }
+        setSubLoading(false);
+      },
+      (error) => {
+        console.error('Error listening to shop subscription:', error);
+        setSubLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [activeShopEmail, isMasterSuperAdmin]);
+
+  const todayDateStr = getTodayDateStr();
+  const isSubscriptionBlocked = (() => {
+    if (!activeShopEmail) return false;
+    if (isMasterSuperAdmin) return false; // Bypass completely for Master Super Admin
+    if (isCustomerBookingMode) return false; // Allow customer booking portal
+    if (subLoading) return false;
+    if (!subscription) return false;
+
+    const isExpired = subscription.expiryDate < todayDateStr || subscription.status === 'expired';
+    if (subscription.status === 'pending' || subscription.status === 'suspended' || isExpired) {
+      return true;
+    }
+    return false;
+  })();
 
   // Audio chime synthesizer for instant audio feedback on new bookings
   const playChimeSound = () => {
@@ -1683,6 +1808,18 @@ export default function App() {
     );
   }
 
+  // Access Control Guard for non-super admin users
+  if (activeShopEmail && isSubscriptionBlocked) {
+    return (
+      <AccessControlGuard
+        subscription={subscription}
+        shopEmail={activeShopEmail}
+        onLogout={handleLogout}
+        onRefresh={refetchSubscription}
+      />
+    );
+  }
+
   const isDisplayOnly = 
     new URLSearchParams(window.location.search).get('view') === 'display' || 
     window.location.hash.includes('view=display') ||
@@ -2038,11 +2175,36 @@ export default function App() {
             </div>
           </button>
 
+          {/* Tab 7: ผู้ดูแลระบบ (Super Admin) - Visible only for Master Super Admin */}
+          {isMasterSuperAdmin && (
+            <button
+              onClick={() => setActiveTab(7)}
+              id="nav-tab-super-admin"
+              className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer min-w-0 ${
+                activeTab === 7
+                  ? 'bg-amber-500 text-stone-950 font-black shadow-md ring-2 ring-amber-300'
+                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-900 border border-amber-200'
+              }`}
+            >
+              <Shield className="w-4 h-4 shrink-0" />
+              <div className="flex flex-col items-center leading-snug text-center">
+                <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ผู้ดูแลระบบ</span>
+                <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 7 ? 'text-stone-900 font-bold' : 'text-amber-800/80'}`}>(Super Admin)</span>
+              </div>
+            </button>
+          )}
+
         </div>
       </nav>
 
       {/* Main Workspace Frame */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in" id="primary-workspace">
+
+        {activeTab === 7 && isMasterSuperAdmin && (
+          <div>
+            <SuperAdminDashboard currentAdminEmail={MASTER_SUPER_ADMIN_EMAIL} />
+          </div>
+        )}
 
         {activeTab === 0 && (
           <div>

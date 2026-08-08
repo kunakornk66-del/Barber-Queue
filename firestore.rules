@@ -91,6 +91,16 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Subscriptions collection for access control & licensing
+    match /subscriptions/{subId} {
+      allow read, write: if true;
+    }
+
+    // Main store document (for deleting shop store)
+    match /stores/{shopEmail} {
+      allow read, write: if true;
+    }
+
     // Tenant-isolated collections under stores
     match /stores/{shopEmail}/bookings/{bookingId} {
       allow read: if true;

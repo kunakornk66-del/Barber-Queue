@@ -59,3 +59,16 @@ export interface ShopService {
   description?: string;      // รายละเอียดการบริการเพิ่มเติม
 }
 
+export type SubscriptionStatus = 'approved' | 'pending' | 'suspended' | 'expired';
+
+export interface ShopSubscription {
+  email: string;
+  shopName: string;
+  status: SubscriptionStatus;
+  startDate: string;  // YYYY-MM-DD
+  expiryDate: string; // YYYY-MM-DD
+  notes: string;
+  createdAt: string;  // ISO timestamp
+  updatedAt: string;  // ISO timestamp
+}
+

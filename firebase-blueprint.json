@@ -82,9 +82,29 @@
         "category": { "type": "string", "description": "Service category" }
       },
       "required": ["id", "name", "durationMinutes", "price"]
+    },
+    "Subscription": {
+      "title": "Subscription",
+      "description": "Represents shop subscription status and validity",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "description": "Shop email ID" },
+        "shopName": { "type": "string", "description": "Shop display name" },
+        "status": { "type": "string", "enum": ["approved", "pending", "suspended", "expired"], "description": "Subscription status" },
+        "startDate": { "type": "string", "description": "Start date YYYY-MM-DD" },
+        "expiryDate": { "type": "string", "description": "Expiration date YYYY-MM-DD" },
+        "notes": { "type": "string", "description": "Admin notes" },
+        "createdAt": { "type": "string", "description": "Creation ISO timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update ISO timestamp" }
+      },
+      "required": ["email", "status", "startDate", "expiryDate"]
     }
   },
   "firestore": {
+    "subscriptions/{subId}": {
+      "schema": "Subscription",
+      "description": "Store subscriptions collection for access control and subscription management"
+    },
     "stores/{shopEmail}/hairdressers/{hairdresserId}": {
       "schema": "Hairdresser",
       "description": "Hairdressers list for a specific shop"
