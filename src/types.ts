@@ -32,6 +32,7 @@ export interface Booking {
   recordedBy: string; // ช่างผู้บันทึก (Hairdresser ID or Name)
   createdAt: string;  // ISO timestamp
   isAnyBarber?: boolean; // แท็กบอกว่าจองแบบ "ไม่ระบุช่าง" แต่ระบบสุ่มช่างว่างให้
+  isWalkInBusy?: boolean; // แท็กบอกว่าเป็นคิวตัดผม Walk-in หน้าร้าน
   status?: 'waiting' | 'in-progress' | 'completed' | 'cancelled';
   paymentSlipUrl?: string; // ภาพสลิปโอนเงิน (Base64)
   serviceName?: string;    // ชื่อบริการที่เลือก

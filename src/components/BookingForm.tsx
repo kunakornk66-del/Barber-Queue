@@ -9,6 +9,7 @@ import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, Use
 import { doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { triggerMascotPopup } from './MascotAssistant';
+import { safeLocalStorage } from '../utils/storage';
 
 // Helper to format Time to Thai style: e.g. "09:30" -> "09.30น."
 export const formatThaiTime = (timeStr: string) => {
@@ -216,6 +217,8 @@ export default function BookingForm({
 
         triggerMascotPopup(`เริ่มคิวตัดผม Walk-in ของช่าง${hdName} เรียบร้อยแล้วงับ! ✂️`, 'เริ่มตัดผม Walk-in', 'cheering');
       } else {
+        const walkinId = `walkin_${hairdresserId}`;
+
         // Clear busy status
         await updateDoc(hairdresserRef, {
           busyStart: null,
@@ -226,6 +229,19 @@ export default function BookingForm({
         await deleteDoc(walkinRef).catch((err) => {
           console.warn("Could not delete walkin booking:", err);
         });
+
+        // Clean local backup in localStorage
+        const localBookingsKey = `backup_bookings_${activeShopEmail}`;
+        const rawLocalBookings = safeLocalStorage.getItem(localBookingsKey);
+        if (rawLocalBookings) {
+          try {
+            const list = JSON.parse(rawLocalBookings);
+            if (Array.isArray(list)) {
+              const filtered = list.filter((b: any) => b.id !== walkinId);
+              safeLocalStorage.setItem(localBookingsKey, JSON.stringify(filtered));
+            }
+          } catch (e) {}
+        }
 
         const hdObj = (hairdressers || []).find(h => h && h.id === hairdresserId);
         const hdName = hdObj ? hdObj.name : '';

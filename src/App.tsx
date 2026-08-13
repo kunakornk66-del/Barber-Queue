@@ -1026,17 +1026,17 @@ export default function App() {
         }
       });
 
-      // Merge local backup bookings that may be pending offline sync
+      // Merge local backup bookings only for pending offline-created items
       const currentLocalRaw = safeLocalStorage.getItem(localKey);
       if (currentLocalRaw) {
         try {
           const localList = JSON.parse(currentLocalRaw) as Booking[];
           if (Array.isArray(localList)) {
             localList.forEach(lb => {
-              if (lb && lb.id && !isPastDay(lb.date, todayStr)) {
+              if (lb && lb.id && lb.id.startsWith('offline_') && !isPastDay(lb.date, todayStr)) {
                 if (!firestoreBookingsMap.has(lb.id)) {
                   firestoreBookingsMap.set(lb.id, lb);
-                  // Push back to Firestore to ensure permanent cloud persistence
+                  // Push back to Firestore for pending offline creation
                   setDoc(doc(db, 'stores', activeShopEmail, 'bookings', lb.id), sanitizeForFirestore(lb), { merge: true }).catch(() => {});
                 }
               }
@@ -1395,17 +1395,32 @@ export default function App() {
       return;
     }
 
-    // If walk-in booking is completed or cancelled, delete it and free the hairdresser so it disappears from queue
-    if (id.startsWith('walkin_') && (updatedData.status === 'completed' || updatedData.status === 'cancelled')) {
-      const hdId = id.replace('walkin_', '');
+    const targetBooking = bookings.find(b => b.id === id);
+    const isWalkIn = id.startsWith('walkin_') || Boolean(targetBooking?.isWalkInBusy) || targetBooking?.customerName === 'ลูกค้าหน้าร้าน (Walk-in)';
+
+    // If walk-in booking is completed or cancelled, explicitly delete it from Firestore and free the hairdresser so it disappears from all active views
+    if (isWalkIn && (updatedData.status === 'completed' || updatedData.status === 'cancelled')) {
+      const hdId = targetBooking?.hairdresserId || (id.startsWith('walkin_') ? id.replace('walkin_', '') : null);
+
+      // 1. Explicitly delete the walk-in booking document from Firestore
       try {
-        const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hdId);
-        await updateDoc(hdRef, { busyStart: null, busyUntil: null });
         await deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', id));
       } catch (e) {
-        console.warn("Error completing walkin booking:", e);
+        console.warn("Error deleting walk-in booking document from Firestore:", e);
       }
 
+      // 2. Clear hairdresser busy state in Firestore and local state
+      if (hdId) {
+        try {
+          const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hdId);
+          await updateDoc(hdRef, { busyStart: null, busyUntil: null });
+        } catch (e) {
+          console.warn("Error resetting hairdresser busy status on walk-in completion/cancellation:", e);
+        }
+        setHairdressers(prev => prev.map(h => h.id === hdId ? { ...h, busyStart: null, busyUntil: null } : h));
+      }
+
+      // 3. Immediately trigger UI update by removing from state and local storage backup
       setBookings(prev => {
         const updated = prev.filter(b => b.id !== id);
         safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
