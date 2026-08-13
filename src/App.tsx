@@ -1122,6 +1122,13 @@ export default function App() {
     }
   }, [hairdressers, recorders, activeRecorder]);
 
+  const isPastDay = (dateStr: string | undefined | null, todayStr: string): boolean => {
+    if (!dateStr || typeof dateStr !== 'string') return false;
+    const cleanDate = dateStr.trim().split('T')[0];
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) return false;
+    return cleanDate < todayStr;
+  };
+
   // 4. Real-time Bookings list from Firestore collection (Filtered on load for past-day pruning)
   useEffect(() => {
     if (!activeShopEmail) return;
@@ -1134,23 +1141,27 @@ export default function App() {
     const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
-        setBookings(JSON.parse(savedLocal));
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed)) {
+          const todayStr = getTodayDateString();
+          setBookings(parsed.filter(b => !isPastDay(b.date, todayStr)));
+        }
       } catch (e) {
         console.warn("Error parsing local bookings backup:", e);
       }
     }
 
     const colRef = collection(db, 'stores', activeShopEmail, 'bookings');
-    let retryTimer: any = null;
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       setIsCloudOnline(true);
+      const todayStr = getTodayDateString();
+
       // Check for newly added documents after initial load
       if (!isInitialBookingsLoadRef.current) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === 'added') {
             const newBooking = change.doc.data() as Booking;
-            const todayStr = getTodayDateString();
-            if (newBooking.date >= todayStr) {
+            if (newBooking.date && !isPastDay(newBooking.date, todayStr)) {
               triggerBookingNotification(newBooking);
             }
           }
@@ -1159,22 +1170,48 @@ export default function App() {
         isInitialBookingsLoadRef.current = false;
       }
 
-      const todayStr = getTodayDateString();
-      const list: Booking[] = [];
+      const firestoreBookingsMap = new Map<string, Booking>();
       snapshot.forEach((docSnap) => {
         const b = docSnap.data() as Booking;
-        if (b.date < todayStr) {
+        if (isPastDay(b.date, todayStr)) {
           // Auto clear past day booking from Firestore to save space
           deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', docSnap.id)).catch(err => {
             console.warn("Auto cleanup past booking error:", err);
           });
         } else {
-          list.push(b);
+          firestoreBookingsMap.set(docSnap.id, b);
         }
       });
 
-      setBookings(list);
-      safeLocalStorage.setItem(localKey, JSON.stringify(list));
+      // Merge local backup bookings that may be pending offline sync
+      const currentLocalRaw = safeLocalStorage.getItem(localKey);
+      if (currentLocalRaw) {
+        try {
+          const localList = JSON.parse(currentLocalRaw) as Booking[];
+          if (Array.isArray(localList)) {
+            localList.forEach(lb => {
+              if (lb && lb.id && !isPastDay(lb.date, todayStr)) {
+                if (!firestoreBookingsMap.has(lb.id)) {
+                  firestoreBookingsMap.set(lb.id, lb);
+                  // Push back to Firestore to ensure permanent cloud persistence
+                  setDoc(doc(db, 'stores', activeShopEmail, 'bookings', lb.id), sanitizeForFirestore(lb), { merge: true }).catch(() => {});
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("Error merging local bookings:", e);
+        }
+      }
+
+      const mergedList = Array.from(firestoreBookingsMap.values());
+      mergedList.sort((a, b) => {
+        if (a.date !== b.date) return (a.date || '').localeCompare(b.date || '');
+        return (a.startTime || '').localeCompare(b.startTime || '');
+      });
+
+      setBookings(mergedList);
+      safeLocalStorage.setItem(localKey, JSON.stringify(mergedList));
       setFirestoreError(null);
     }, (error) => {
       console.warn("Using local bookings backup:", error);
@@ -1194,7 +1231,11 @@ export default function App() {
     const savedLocal = safeLocalStorage.getItem(localKey);
     if (savedLocal) {
       try {
-        setLeaves(JSON.parse(savedLocal));
+        const parsed = JSON.parse(savedLocal);
+        if (Array.isArray(parsed)) {
+          const todayStr = getTodayDateString();
+          setLeaves(parsed.filter(l => !isPastDay(l.date, todayStr)));
+        }
       } catch (e) {
         console.warn("Error parsing local leaves backup:", e);
       }
@@ -1204,24 +1245,47 @@ export default function App() {
     const unsubscribe = onSnapshot(colRef, (snapshot) => {
       setIsCloudOnline(true);
       const todayStr = getTodayDateString();
-      const activeLeaves: LeaveRecord[] = [];
+      const firestoreLeavesMap = new Map<string, LeaveRecord>();
+
       snapshot.forEach((docSnap) => {
         const l = docSnap.data() as LeaveRecord;
-        if (l.date < todayStr) {
+        if (isPastDay(l.date, todayStr)) {
           // Auto clear past day leave record from Firestore
           deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', docSnap.id)).catch(err => {
             console.warn("Auto cleanup past leave record error:", err);
           });
         } else {
-          activeLeaves.push(l);
+          firestoreLeavesMap.set(docSnap.id, l);
         }
       });
 
-      // Sort leaves by date and starting time to showcase nicely
+      // Merge local backup leaves
+      const currentLocalRaw = safeLocalStorage.getItem(localKey);
+      if (currentLocalRaw) {
+        try {
+          const localList = JSON.parse(currentLocalRaw) as LeaveRecord[];
+          if (Array.isArray(localList)) {
+            localList.forEach(ll => {
+              if (ll && ll.id && !isPastDay(ll.date, todayStr)) {
+                if (!firestoreLeavesMap.has(ll.id)) {
+                  firestoreLeavesMap.set(ll.id, ll);
+                  setDoc(doc(db, 'stores', activeShopEmail, 'leaves', ll.id), sanitizeForFirestore(ll), { merge: true }).catch(() => {});
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.warn("Error merging local leaves:", e);
+        }
+      }
+
+      const activeLeaves = Array.from(firestoreLeavesMap.values());
+      // Sort leaves by date and starting time
       activeLeaves.sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date);
-        return a.startTime.localeCompare(b.startTime);
+        if (a.date !== b.date) return (a.date || '').localeCompare(b.date || '');
+        return (a.startTime || '').localeCompare(b.startTime || '');
       });
+
       setLeaves(activeLeaves);
       safeLocalStorage.setItem(localKey, JSON.stringify(activeLeaves));
       setFirestoreError(null);
@@ -1291,14 +1355,14 @@ export default function App() {
 
       // Automatically purge any past-day bookings and leaves from Firestore and local state
       setBookings(prevBookings => {
-        const past = prevBookings.filter(b => b.date < todayStr);
+        const past = prevBookings.filter(b => isPastDay(b.date, todayStr));
         if (past.length > 0) {
           past.forEach(b => {
             deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', b.id)).catch(err => {
               console.warn("Auto cleanup past booking error:", err);
             });
           });
-          const fresh = prevBookings.filter(b => b.date >= todayStr);
+          const fresh = prevBookings.filter(b => !isPastDay(b.date, todayStr));
           safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(fresh));
           return fresh;
         }
@@ -1306,14 +1370,14 @@ export default function App() {
       });
 
       setLeaves(prevLeaves => {
-        const past = prevLeaves.filter(l => l.date < todayStr);
+        const past = prevLeaves.filter(l => isPastDay(l.date, todayStr));
         if (past.length > 0) {
           past.forEach(l => {
             deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', l.id)).catch(err => {
               console.warn("Auto cleanup past leave error:", err);
             });
           });
-          const fresh = prevLeaves.filter(l => l.date >= todayStr);
+          const fresh = prevLeaves.filter(l => !isPastDay(l.date, todayStr));
           safeLocalStorage.setItem(`backup_leaves_${activeShopEmail}`, JSON.stringify(fresh));
           return fresh;
         }

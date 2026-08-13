@@ -544,7 +544,7 @@ export default function BookingForm({
   useEffect(() => {
     const cleanP = customerPhone.replace(/\D/g, '');
     if (cleanP.length >= 9) {
-      const exactMatch = getUniqueCustomers().find(c => c.phone.replace(/\D/g, '') === cleanP);
+      const exactMatch = getUniqueCustomers().find(c => (c?.phone || '').replace(/\D/g, '') === cleanP);
       if (exactMatch && (!customerName || customerName === 'ลูกค้าหน้าร้าน (Walk-in)')) {
         setCustomerName(exactMatch.name);
         if (exactMatch.lastRemarks && !remarks) {

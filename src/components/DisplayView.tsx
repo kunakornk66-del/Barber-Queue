@@ -43,8 +43,9 @@ function BarberAvatar({
   const avatarUrl = hairdresser?.avatarUrl;
   const palette = getBarberPalette(hairdresser?.id || name);
   
-  const cleanName = name.replace(/^(ช่าง|นาย|นาง|นางสาว)\s*/, '').trim();
-  const initial = (cleanName || name || 'ช').charAt(0).toUpperCase();
+  const safeName = name || '';
+  const cleanName = safeName.replace(/^(ช่าง|นาย|นาง|นางสาว)\s*/, '').trim();
+  const initial = (cleanName || safeName || 'ช').charAt(0).toUpperCase();
 
   const sizeClasses = {
     sm: 'w-7 h-7 text-xs border shadow-xs',
@@ -92,14 +93,18 @@ interface DisplayViewProps {
 }
 
 export default function DisplayView({
-  bookings,
-  hairdressers,
-  shopName,
-  shopLogoUrl,
+  bookings = [],
+  hairdressers = [],
+  shopName = 'ร้านตัดผม',
+  shopLogoUrl = '',
   shopOpenTime = '10:00',
   shopCloseTime = '21:00',
   isCloudOnline = true
 }: DisplayViewProps) {
+  // Safe arrays
+  const safeBookings = Array.isArray(bookings) ? bookings : [];
+  const safeHairdressers = Array.isArray(hairdressers) ? hairdressers : [];
+
   // Live time state
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -110,7 +115,7 @@ export default function DisplayView({
 
   // Recently updated bookings animation state
   const [recentlyUpdatedIds, setRecentlyUpdatedIds] = useState<Set<string>>(new Set());
-  const prevBookingsRef = useRef<Booking[]>(bookings);
+  const prevBookingsRef = useRef<Booking[]>(safeBookings);
 
   // Theme state for display monitor
   const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'oled' | 'auto'>('light');
@@ -165,14 +170,15 @@ export default function DisplayView({
   // Track queue updates dynamically to trigger TV animation on newly updated queue items
   useEffect(() => {
     if (!prevBookingsRef.current) {
-      prevBookingsRef.current = bookings;
+      prevBookingsRef.current = safeBookings;
       return;
     }
 
-    const prevMap = new Map<string, Booking>((prevBookingsRef.current || []).map(b => [b.id, b]));
+    const prevMap = new Map<string, Booking>((prevBookingsRef.current || []).filter(Boolean).map(b => [b.id, b]));
     const newlyChanged = new Set<string>();
 
-    bookings.forEach(b => {
+    safeBookings.forEach(b => {
+      if (!b || !b.id) return;
       const prev = prevMap.get(b.id);
       if (!prev) {
         // Brand new booking added
@@ -201,12 +207,12 @@ export default function DisplayView({
         });
       }, 10000);
 
-      prevBookingsRef.current = bookings;
+      prevBookingsRef.current = safeBookings;
       return () => clearTimeout(clearTimer);
     }
 
-    prevBookingsRef.current = bookings;
-  }, [bookings]);
+    prevBookingsRef.current = safeBookings;
+  }, [safeBookings]);
 
   // Theme auto cycle switcher (toggles between light, dark, and oled every 30 seconds if auto cycle is active)
   useEffect(() => {
@@ -226,50 +232,60 @@ export default function DisplayView({
   const isDark = activeTheme === 'dark' || activeTheme === 'oled';
   const isOled = activeTheme === 'oled';
 
-  // Fetch real system voices (Thai) dynamically
+  // Fetch real system voices (Thai) dynamically with tablet null-safety
   useEffect(() => {
     const updateVoices = () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        const voicesList = window.speechSynthesis.getVoices();
-        const thaiVoices = voicesList.filter(v => v.lang.toLowerCase().includes('th'));
-        setAvailableVoices(thaiVoices);
+      try {
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+          const voicesList = window.speechSynthesis.getVoices() || [];
+          const thaiVoices = voicesList.filter(v => {
+            const lang = (v?.lang || '').toLowerCase();
+            return lang.includes('th');
+          });
+          setAvailableVoices(thaiVoices);
 
-        if (thaiVoices.length > 0 && !selectedVoiceName) {
-          // Look for a known high-quality female or default voice
-          const defaultVoice = thaiVoices.find(v => 
-            v.name.toLowerCase().includes('narisa') || 
-            v.name.toLowerCase().includes('kanya') ||
-            v.name.toLowerCase().includes('google')
-          ) || thaiVoices[0];
-          setSelectedVoiceName(defaultVoice.name);
+          if (thaiVoices.length > 0 && !selectedVoiceName) {
+            const defaultVoice = thaiVoices.find(v => {
+              const name = (v?.name || '').toLowerCase();
+              return name.includes('narisa') || name.includes('kanya') || name.includes('google');
+            }) || thaiVoices[0];
 
-          // Suggest initial suffix based on voice description
-          const nameLower = defaultVoice.name.toLowerCase();
-          if (nameLower.includes('pattara') || nameLower.includes('male')) {
-            setPoliteSuffix('ครับผม');
-          } else {
-            setPoliteSuffix('ค่ะ');
+            if (defaultVoice && defaultVoice.name) {
+              setSelectedVoiceName(defaultVoice.name);
+              const nameLower = (defaultVoice.name || '').toLowerCase();
+              if (nameLower.includes('pattara') || nameLower.includes('male')) {
+                setPoliteSuffix('ครับผม');
+              } else {
+                setPoliteSuffix('ค่ะ');
+              }
+            }
           }
         }
+      } catch (err) {
+        console.warn("Speech synthesis voices notice:", err);
       }
     };
 
     updateVoices();
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      window.speechSynthesis.onvoiceschanged = updateVoices;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+      try {
+        window.speechSynthesis.onvoiceschanged = updateVoices;
+      } catch (e) {}
     }
     return () => {
-      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-        window.speechSynthesis.onvoiceschanged = null;
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window && window.speechSynthesis) {
+        try {
+          window.speechSynthesis.onvoiceschanged = null;
+        } catch (e) {}
       }
     };
   }, [selectedVoiceName]);
 
   const handleVoiceChange = (voiceName: string) => {
     setSelectedVoiceName(voiceName);
-    const selected = availableVoices.find(v => v.name === voiceName);
+    const selected = availableVoices.find(v => v && v.name === voiceName);
     if (selected) {
-      const nameLower = selected.name.toLowerCase();
+      const nameLower = (selected.name || '').toLowerCase();
       if (nameLower.includes('pattara') || nameLower.includes('male')) {
         setPoliteSuffix('ครับผม');
       } else {
@@ -289,102 +305,139 @@ export default function DisplayView({
   const todayStr = getTodayDateString();
   const currentHHMM = currentTime.toTimeString().slice(0, 5); // "HH:MM"
 
-  // Get hairdresser object
+  // Get hairdresser object safely
   const getHairdresserObj = (id: string | null) => {
-    if (id === null) return undefined;
-    return hairdressers.find(h => h.id === id);
+    if (!id) return undefined;
+    return safeHairdressers.find(h => h && h.id === id);
   };
 
-  // Get name of hairdresser
+  // Get name of hairdresser safely
   const getHairdresserName = (id: string | null) => {
-    if (id === null) return 'ช่างคนไหนก็ได้';
-    const found = hairdressers.find(h => h.id === id);
-    return found ? found.name : 'ช่างทั่วไป';
+    if (!id) return 'ช่างคนไหนก็ได้';
+    const found = safeHairdressers.find(h => h && h.id === id);
+    return found && found.name ? found.name : 'ช่างทั่วไป';
   };
 
   // 1. Get Today's bookings
-  const todayBookings = bookings
-    .filter(b => b.date === todayStr)
-    .sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const todayBookings = safeBookings
+    .filter(b => b && b.date === todayStr)
+    .sort((a, b) => (a?.startTime || '').localeCompare(b?.startTime || ''));
 
   // 2. Identify ACTIVE bookings (currently being served)
-  // Definition: Today's bookings where startTime <= currentHHMM AND currentHHMM < endTime
   const activeBookings = todayBookings.filter(b => {
+    if (!b || !b.startTime || !b.endTime) return false;
     return b.startTime <= currentHHMM && currentHHMM < b.endTime;
   });
 
   // 3. Identify UPCOMING bookings (next queues)
-  // Definition: Today's bookings where startTime > currentHHMM
   const upcomingBookings = todayBookings.filter(b => {
+    if (!b || !b.startTime) return false;
     return b.startTime > currentHHMM;
   });
 
-  // If there are no strictly active bookings based on real time,
-  // let's fallback to check if any hairdresser is marked as physically busy at the moment
-  const barbersWithActiveCuts = hairdressers.filter(hd => {
-    if (hd.busyUntil && hd.busyStart) {
-      const busyUntilDate = new Date(hd.busyUntil);
-      return busyUntilDate > currentTime;
+  // Check barbers with active cuts safely
+  const barbersWithActiveCuts = safeHairdressers.filter(hd => {
+    if (hd && hd.busyUntil && hd.busyStart) {
+      try {
+        const busyUntilDate = new Date(hd.busyUntil);
+        return !isNaN(busyUntilDate.getTime()) && busyUntilDate > currentTime;
+      } catch (e) {
+        return false;
+      }
     }
     return false;
   });
 
-  // Call Customer Voice Announcement using Web Speech API
+  // Call Customer Voice Announcement safely
   const handleCallCustomer = (booking: Booking) => {
-    if (!('speechSynthesis' in window)) {
+    if (!booking) return;
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || !window.speechSynthesis) {
       alert('เบราว์เซอร์นี้ไม่รองรับระบบเสียงพูดเรียกคิว');
       return;
     }
 
-    setSpeakingId(booking.id);
-    window.speechSynthesis.cancel(); // Stop any currently speaking speech
+    try {
+      setSpeakingId(booking.id);
+      window.speechSynthesis.cancel(); // Stop any currently speaking speech
 
-    const barberName = getHairdresserName(booking.hairdresserId);
-    const customerNameClean = booking.customerName.replace(/[^ก-๙a-zA-Z0-9\s]/g, '');
+      const barberName = getHairdresserName(booking.hairdresserId);
+      const customerNameClean = (booking?.customerName || '').replace(/[^ก-๙a-zA-Z0-9\s]/g, '');
 
-    // Construct Thai polite speech text with customized suffix
-    const suffixText = politeSuffix ? ` ${politeSuffix}` : '';
-    const text = `ขอเชิญคุณ ${customerNameClean} รับบริการ ที่ช่อง ช่าง${barberName} ได้เลย${suffixText}`;
+      // Construct Thai polite speech text with customized suffix
+      const suffixText = politeSuffix ? ` ${politeSuffix}` : '';
+      const text = `ขอเชิญคุณ ${customerNameClean} รับบริการ ที่ช่อง ช่าง${barberName} ได้เลย${suffixText}`;
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'th-TH';
-    utterance.rate = 0.95; // Slightly slower for crisp clear storefront audio
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'th-TH';
+      utterance.rate = 0.95;
 
-    // Select the chosen voice engine
-    if (availableVoices.length > 0 && selectedVoiceName) {
-      const activeVoice = availableVoices.find(v => v.name === selectedVoiceName);
-      if (activeVoice) {
-        utterance.voice = activeVoice;
+      // Select the chosen voice engine safely
+      if (availableVoices.length > 0 && selectedVoiceName) {
+        const activeVoice = availableVoices.find(v => v && v.name === selectedVoiceName);
+        if (activeVoice) {
+          utterance.voice = activeVoice;
+        }
+      } else {
+        const rawVoices = window.speechSynthesis.getVoices() || [];
+        const fallbackThai = rawVoices.find(v => {
+          const lang = (v?.lang || '').toLowerCase();
+          return lang.includes('th');
+        });
+        if (fallbackThai) {
+          utterance.voice = fallbackThai;
+        }
       }
-    } else {
-      const fallbackThai = window.speechSynthesis.getVoices().find(v => v.lang.includes('TH') || v.lang.includes('th'));
-      if (fallbackThai) {
-        utterance.voice = fallbackThai;
-      }
+
+      utterance.onend = () => setSpeakingId(null);
+      utterance.onerror = () => setSpeakingId(null);
+
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      console.warn("Speech synthesis call error notice:", e);
+      setSpeakingId(null);
     }
-
-    utterance.onend = () => {
-      setSpeakingId(null);
-    };
-
-    utterance.onerror = () => {
-      setSpeakingId(null);
-    };
-
-    window.speechSynthesis.speak(utterance);
   };
 
-  // Toggle fullscreen mode safely
+  // Toggle fullscreen mode safely for all devices (iPads, Tablets, Smart TVs, Desktops)
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().then(() => {
-        setIsFullscreen(true);
-      }).catch(err => {
-        console.warn(`Error attempting to enable full-screen mode: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-      setIsFullscreen(false);
+    try {
+      const docEl = document.documentElement as any;
+      const doc = document as any;
+
+      if (!doc.fullscreenElement && !doc.webkitFullscreenElement && !doc.mozFullScreenElement && !doc.msFullscreenElement) {
+        if (docEl.requestFullscreen) {
+          docEl.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => setIsFullscreen(true));
+        } else if (docEl.webkitRequestFullscreen) {
+          docEl.webkitRequestFullscreen();
+          setIsFullscreen(true);
+        } else if (docEl.mozRequestFullScreen) {
+          docEl.mozRequestFullScreen();
+          setIsFullscreen(true);
+        } else if (docEl.msRequestFullscreen) {
+          docEl.msRequestFullscreen();
+          setIsFullscreen(true);
+        } else {
+          setIsFullscreen(!isFullscreen);
+        }
+      } else {
+        if (doc.exitFullscreen) {
+          doc.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => setIsFullscreen(false));
+        } else if (doc.webkitExitFullscreen) {
+          doc.webkitExitFullscreen();
+          setIsFullscreen(false);
+        } else if (doc.mozCancelFullScreen) {
+          doc.mozCancelFullScreen();
+          setIsFullscreen(false);
+        } else if (doc.msExitFullscreen) {
+          doc.msExitFullscreen();
+          setIsFullscreen(false);
+        } else {
+          setIsFullscreen(false);
+        }
+      }
+    } catch (e) {
+      console.warn("Fullscreen toggle notice:", e);
+      setIsFullscreen(!isFullscreen);
     }
   };
 
@@ -1005,7 +1058,7 @@ export default function DisplayView({
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {hairdressers.filter(h => !h.onLeave).map(hd => {
+              {safeHairdressers.filter(h => h && !h.onLeave).map(hd => {
                 const isBusy = hd.busyUntil && hd.busyStart && new Date(hd.busyUntil) > currentTime;
                 const isBreak = hd.breakUntil && hd.breakStart && new Date(hd.breakUntil) > currentTime;
                 
