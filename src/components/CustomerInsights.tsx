@@ -264,7 +264,7 @@ export default function CustomerInsights({ bookings, hairdressers }: CustomerIns
               <div className="bg-white border border-stone-200/60 rounded-3xl p-6 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                 <div className="md:col-span-2 flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/30 flex items-center justify-center text-brand font-bold text-sm shrink-0">
-                    {activeCustomer.name.slice(0, 2)}
+                    {(activeCustomer?.name || '').slice(0, 2)}
                   </div>
                   <div className="space-y-1 min-w-0">
                     <h3 className="text-base font-bold text-stone-900 truncate">{activeCustomer.name}</h3>

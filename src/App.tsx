@@ -27,6 +27,7 @@ import {
   onSnapshot, 
   doc, 
   getDoc,
+  getDocs,
   setDoc, 
   deleteDoc,
   updateDoc
@@ -188,15 +189,56 @@ export default function App() {
     return `${year}-${month}-${day}`;
   };
 
+  const findMatchingSubscription = async (cleanEmail: string): Promise<ShopSubscription | null> => {
+    try {
+      // 1. Direct document lookup
+      const docRef = doc(db, 'subscriptions', cleanEmail);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data() as ShopSubscription;
+        return { ...data, email: cleanEmail };
+      }
+
+      // 2. Scan subscriptions collection for case-insensitive / legacy email matches
+      const collSnap = await getDocs(collection(db, 'subscriptions'));
+      let foundSub: ShopSubscription | null = null;
+      let matchedRawId: string | null = null;
+
+      collSnap.forEach((d) => {
+        const data = d.data() as ShopSubscription;
+        const dIdClean = d.id.trim().toLowerCase();
+        const dEmailClean = (data.email || '').trim().toLowerCase();
+
+        if (dIdClean === cleanEmail || dEmailClean === cleanEmail) {
+          if (!foundSub || (foundSub.status === 'pending' && data.status === 'approved')) {
+            foundSub = { ...data, email: cleanEmail };
+            matchedRawId = d.id;
+          }
+        }
+      });
+
+      if (foundSub) {
+        // Automatically sync to lowercase doc ID so future lookups are immediate
+        await setDoc(doc(db, 'subscriptions', cleanEmail), foundSub, { merge: true });
+        if (matchedRawId && matchedRawId !== cleanEmail) {
+          deleteDoc(doc(db, 'subscriptions', matchedRawId)).catch(() => {});
+        }
+        return foundSub;
+      }
+    } catch (err) {
+      console.error('Error finding matching subscription:', err);
+    }
+    return null;
+  };
+
   const refetchSubscription = async () => {
     if (!activeShopEmail || isMasterSuperAdmin) return;
     setSubLoading(true);
     try {
       const cleanEmail = activeShopEmail.trim().toLowerCase();
-      const docRef = doc(db, 'subscriptions', cleanEmail);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setSubscription(snap.data() as ShopSubscription);
+      const existingSub = await findMatchingSubscription(cleanEmail);
+      if (existingSub) {
+        setSubscription(existingSub);
       } else {
         const todayStr = getTodayDateStr();
         let currentShopName = cleanEmail;
@@ -221,6 +263,7 @@ export default function App() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
+        const docRef = doc(db, 'subscriptions', cleanEmail);
         await setDoc(docRef, newPendingSub);
         setSubscription(newPendingSub);
       }
@@ -261,39 +304,47 @@ export default function App() {
       docRef,
       async (docSnap) => {
         if (docSnap.exists()) {
-          setSubscription(docSnap.data() as ShopSubscription);
+          setSubscription({ ...(docSnap.data() as ShopSubscription), email: cleanEmail });
+          setSubLoading(false);
         } else {
-          const todayStr = getTodayDateStr();
-          let currentShopName = cleanEmail;
-          try {
-            const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
-            if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
-              currentShopName = storeConfigSnap.data().shopName;
-            } else if (shopName && shopName !== 'BARBER PRO') {
-              currentShopName = shopName;
+          // Double-check collection fallback before declaring it's a new pending subscription
+          const existingSub = await findMatchingSubscription(cleanEmail);
+          if (existingSub) {
+            setSubscription(existingSub);
+            setSubLoading(false);
+          } else {
+            const todayStr = getTodayDateStr();
+            let currentShopName = cleanEmail;
+            try {
+              const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
+              if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
+                currentShopName = storeConfigSnap.data().shopName;
+              } else if (shopName && shopName !== 'BARBER PRO') {
+                currentShopName = shopName;
+              }
+            } catch (e) {
+              if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
             }
-          } catch (e) {
-            if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
-          }
 
-          const newPendingSub: ShopSubscription = {
-            email: cleanEmail,
-            shopName: currentShopName,
-            status: 'pending',
-            startDate: todayStr,
-            expiryDate: todayStr,
-            notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          try {
-            await setDoc(docRef, newPendingSub);
-          } catch (e) {
-            console.warn('Error auto-creating pending subscription doc:', e);
+            const newPendingSub: ShopSubscription = {
+              email: cleanEmail,
+              shopName: currentShopName,
+              status: 'pending',
+              startDate: todayStr,
+              expiryDate: todayStr,
+              notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            try {
+              await setDoc(docRef, newPendingSub);
+            } catch (e) {
+              console.warn('Error auto-creating pending subscription doc:', e);
+            }
+            setSubscription(newPendingSub);
+            setSubLoading(false);
           }
-          setSubscription(newPendingSub);
         }
-        setSubLoading(false);
       },
       (error) => {
         console.error('Error listening to shop subscription:', error);

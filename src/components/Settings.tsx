@@ -945,7 +945,7 @@ export default function Settings({
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <div className="flex items-center -space-x-1 shrink-0">
-                          {palette.previewColors.slice(0, 3).map((color, idx) => (
+                          {(palette?.previewColors || []).slice(0, 3).map((color, idx) => (
                             <span
                               key={idx}
                               className="w-3.5 h-3.5 rounded-full border border-stone-300 shadow-2xs inline-block"
@@ -2047,10 +2047,10 @@ export default function Settings({
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             <div className="w-9 h-9 rounded-full bg-brand/10 border border-brand/30 text-brand font-bold text-xs flex items-center justify-center shrink-0">
-                              {rec.name.slice(0, 2)}
+                              {(rec?.name || '').slice(0, 2)}
                             </div>
                             <div className="min-w-0">
-                              <h4 className="font-bold text-xs text-stone-900 truncate">{rec.name}</h4>
+                              <h4 className="font-bold text-xs text-stone-900 truncate">{rec?.name || ''}</h4>
                               <span className="inline-block text-[10px] font-semibold text-stone-500 bg-stone-200/70 px-2 py-0.5 rounded-md mt-0.5">
                                 {rec.role || 'พนักงาน'}
                               </span>

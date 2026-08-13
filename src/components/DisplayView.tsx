@@ -1100,7 +1100,7 @@ export default function DisplayView({
 
           {upcomingBookings.length > 0 ? (
             <div className="space-y-4" id="upcoming-queues-list">
-              {upcomingBookings.slice(0, 6).map((booking, index) => {
+              {(upcomingBookings || []).slice(0, 6).map((booking, index) => {
                 const isRecentlyUpdated = recentlyUpdatedIds.has(booking.id);
 
                 return (

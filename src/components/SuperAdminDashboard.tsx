@@ -95,14 +95,36 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ curren
     const unsubscribe = onSnapshot(
       subRef,
       async (snapshot) => {
-        const list: ShopSubscription[] = [];
+        const seenEmails = new Map<string, ShopSubscription>();
+
         snapshot.forEach((docSnap) => {
           const data = docSnap.data() as ShopSubscription;
-          list.push({
-            ...data,
-            email: docSnap.id.toLowerCase() || data.email?.toLowerCase(),
-          });
+          const rawId = docSnap.id.trim();
+          const cleanEmail = rawId.toLowerCase() || (data.email || '').trim().toLowerCase();
+
+          if (!cleanEmail) return;
+
+          // If doc ID was not lowercase, migrate it automatically to cleanEmail doc ID
+          if (rawId !== cleanEmail) {
+            setDoc(doc(db, 'subscriptions', cleanEmail), { ...data, email: cleanEmail }, { merge: true })
+              .then(() => deleteDoc(doc(db, 'subscriptions', rawId)))
+              .catch(() => {});
+          }
+
+          const currentSub = { ...data, email: cleanEmail };
+
+          if (!seenEmails.has(cleanEmail)) {
+            seenEmails.set(cleanEmail, currentSub);
+          } else {
+            const existing = seenEmails.get(cleanEmail)!;
+            // Prefer 'approved' or active status over 'pending'
+            if (existing.status === 'pending' && currentSub.status === 'approved') {
+              seenEmails.set(cleanEmail, currentSub);
+            }
+          }
         });
+
+        const list = Array.from(seenEmails.values());
 
         // Enrich each subscription with real shopName from stores/{cleanEmail}/settings/config if available
         const enrichedList = await Promise.all(

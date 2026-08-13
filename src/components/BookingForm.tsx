@@ -533,7 +533,7 @@ export default function BookingForm({
   const cleanTypedPhone = customerPhone.replace(/\D/g, '');
   const uniqueCustomers = getUniqueCustomers();
   const suggestions = uniqueCustomers.filter(c => {
-    const cleanCPhone = c.phone.replace(/\D/g, '');
+    const cleanCPhone = (c?.phone || '').replace(/\D/g, '');
     if (cleanTypedPhone.length > 0) {
       return cleanCPhone.startsWith(cleanTypedPhone) || cleanCPhone.includes(cleanTypedPhone);
     }
@@ -902,9 +902,9 @@ export default function BookingForm({
                     title={`ช่าง${hd.name} ลางาน / ปิดรับจองชั่วคราว`}
                   >
                     <div className="w-7 h-7 rounded-full bg-stone-200 text-stone-400 flex items-center justify-center text-[10px] font-bold font-mono">
-                      {hd.name.slice(0, 2)}
+                      {(hd?.name || '').slice(0, 2)}
                     </div>
-                    <span className="truncate max-w-full text-center font-bold line-through">ช่าง{hd.name}</span>
+                    <span className="truncate max-w-full text-center font-bold line-through">ช่าง{hd?.name || ''}</span>
                     <span className="text-[9px] font-bold text-amber-700 bg-amber-50/70 px-2 py-0.5 rounded-full border border-amber-200/50">ลางาน</span>
                   </button>
                 );
@@ -918,12 +918,12 @@ export default function BookingForm({
                     disabled
                     id={`hairdresser-btn-${hd.id}`}
                     className="px-4 py-3 rounded-2xl text-xs font-semibold flex flex-col items-center justify-center gap-1.5 border border-dashed border-amber-300 bg-amber-50/50 text-amber-800 cursor-not-allowed opacity-80"
-                    title={`ช่าง${hd.name} ปิดคิวชั่วคราวช่วงเวลา ${formatThaiTime(activePartialLeave.startTime)} - ${formatThaiTime(activePartialLeave.endTime)}`}
+                    title={`ช่าง${hd?.name || ''} ปิดคิวชั่วคราวช่วงเวลา ${formatThaiTime(activePartialLeave.startTime)} - ${formatThaiTime(activePartialLeave.endTime)}`}
                   >
                     <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-[10px] font-bold font-mono">
-                      {hd.name.slice(0, 2)}
+                      {(hd?.name || '').slice(0, 2)}
                     </div>
-                    <span className="truncate max-w-full text-center font-bold text-amber-900">ช่าง{hd.name}</span>
+                    <span className="truncate max-w-full text-center font-bold text-amber-900">ช่าง{hd?.name || ''}</span>
                     <span className="text-[9px] font-bold text-red-700 bg-red-50/70 px-1.5 py-0.5 rounded-md border border-red-200">
                       ปิดคิว ({formatThaiTime(activePartialLeave.startTime)} - {formatThaiTime(activePartialLeave.endTime)})
                     </span>
@@ -944,9 +944,9 @@ export default function BookingForm({
                   }`}
                 >
                   <div className="w-7 h-7 rounded-full bg-stone-earth text-brand-light flex items-center justify-center text-[10px] font-bold font-mono">
-                    {hd.name.slice(0, 2)}
+                    {(hd?.name || '').slice(0, 2)}
                   </div>
-                  <span className="truncate max-w-full text-center font-bold">ช่าง{hd.name}</span>
+                  <span className="truncate max-w-full text-center font-bold">ช่าง{hd?.name || ''}</span>
                   <span className="text-[9px] font-normal text-stone-400">ระบุประจำคิว</span>
                 </button>
               );

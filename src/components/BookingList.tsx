@@ -898,7 +898,7 @@ export default function BookingList({
               </div>
             </div>
             <div className="flex items-center gap-2 flex-wrap shrink-0">
-              {upcomingAlerts.slice(0, 3).map((b) => (
+              {(upcomingAlerts || []).slice(0, 3).map((b) => (
                 <span key={`banner-alert-${b.id}`} className="bg-stone-900 text-amber-300 font-bold text-[10px] px-2.5 py-1 rounded-xl shadow-xs border border-amber-400/30 font-mono">
                   ⏱️ {formatThaiTime(b.startTime)} ({b.customerName})
                 </span>
