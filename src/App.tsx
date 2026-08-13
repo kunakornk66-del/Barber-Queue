@@ -12,10 +12,8 @@ import Settings from './components/Settings';
 import DisplayView from './components/DisplayView';
 import CustomerSelfBookingView from './components/CustomerSelfBookingView';
 import TimetableGrid from './components/TimetableGrid';
-import { AccessControlGuard } from './components/AccessControlGuard';
-import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import MascotAssistant, { triggerMascotPopup } from './components/MascotAssistant';
-import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe, LayoutGrid, Shield } from 'lucide-react';
+import { Calendar, Users, Settings as SettingsIcon, Scissors, Clock, LogIn, LogOut, CalendarOff, Tv, Copy, Check, ExternalLink, Bell, Globe, LayoutGrid } from 'lucide-react';
 import { DEFAULT_THEME_ID, applyThemePalette } from './theme';
 import { safeLocalStorage } from './utils/storage';
 
@@ -174,13 +172,7 @@ export default function App() {
     return null;
   });
 
-  // Master Super Admin & Subscription System logic
-  const MASTER_SUPER_ADMIN_EMAIL = 'kunakorn.k66@gmail.com';
-  const isMasterSuperAdmin = activeShopEmail?.trim().toLowerCase() === MASTER_SUPER_ADMIN_EMAIL;
-
-  const [subscription, setSubscription] = useState<ShopSubscription | null>(null);
-  const [subLoading, setSubLoading] = useState<boolean>(true);
-
+  // Date string helper
   const getTodayDateStr = () => {
     const d = new Date();
     const year = d.getFullYear();
@@ -188,187 +180,6 @@ export default function App() {
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
-
-  const findMatchingSubscription = async (cleanEmail: string): Promise<ShopSubscription | null> => {
-    try {
-      // 1. Direct document lookup
-      const docRef = doc(db, 'subscriptions', cleanEmail);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        const data = snap.data() as ShopSubscription;
-        return { ...data, email: cleanEmail };
-      }
-
-      // 2. Scan subscriptions collection for case-insensitive / legacy email matches
-      const collSnap = await getDocs(collection(db, 'subscriptions'));
-      let foundSub: ShopSubscription | null = null;
-      let matchedRawId: string | null = null;
-
-      collSnap.forEach((d) => {
-        const data = d.data() as ShopSubscription;
-        const dIdClean = d.id.trim().toLowerCase();
-        const dEmailClean = (data.email || '').trim().toLowerCase();
-
-        if (dIdClean === cleanEmail || dEmailClean === cleanEmail) {
-          if (!foundSub || (foundSub.status === 'pending' && data.status === 'approved')) {
-            foundSub = { ...data, email: cleanEmail };
-            matchedRawId = d.id;
-          }
-        }
-      });
-
-      if (foundSub) {
-        // Automatically sync to lowercase doc ID so future lookups are immediate
-        await setDoc(doc(db, 'subscriptions', cleanEmail), foundSub, { merge: true });
-        if (matchedRawId && matchedRawId !== cleanEmail) {
-          deleteDoc(doc(db, 'subscriptions', matchedRawId)).catch(() => {});
-        }
-        return foundSub;
-      }
-    } catch (err) {
-      console.error('Error finding matching subscription:', err);
-    }
-    return null;
-  };
-
-  const refetchSubscription = async () => {
-    if (!activeShopEmail || isMasterSuperAdmin) return;
-    setSubLoading(true);
-    try {
-      const cleanEmail = activeShopEmail.trim().toLowerCase();
-      const existingSub = await findMatchingSubscription(cleanEmail);
-      if (existingSub) {
-        setSubscription(existingSub);
-      } else {
-        const todayStr = getTodayDateStr();
-        let currentShopName = cleanEmail;
-        try {
-          const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
-          if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
-            currentShopName = storeConfigSnap.data().shopName;
-          } else if (shopName && shopName !== 'BARBER PRO') {
-            currentShopName = shopName;
-          }
-        } catch (e) {
-          if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
-        }
-
-        const newPendingSub: ShopSubscription = {
-          email: cleanEmail,
-          shopName: currentShopName,
-          status: 'pending',
-          startDate: todayStr,
-          expiryDate: todayStr,
-          notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-        const docRef = doc(db, 'subscriptions', cleanEmail);
-        await setDoc(docRef, newPendingSub);
-        setSubscription(newPendingSub);
-      }
-    } catch (err) {
-      console.error('Error refetching subscription:', err);
-    } finally {
-      setSubLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!activeShopEmail) {
-      setSubscription(null);
-      setSubLoading(false);
-      return;
-    }
-
-    if (isMasterSuperAdmin) {
-      setSubscription({
-        email: MASTER_SUPER_ADMIN_EMAIL,
-        shopName: 'Master Super Admin',
-        status: 'approved',
-        startDate: '2020-01-01',
-        expiryDate: '2099-12-31',
-        notes: 'Master Super Admin Access (Bypass)',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      setSubLoading(false);
-      return;
-    }
-
-    setSubLoading(true);
-    const cleanEmail = activeShopEmail.trim().toLowerCase();
-    const docRef = doc(db, 'subscriptions', cleanEmail);
-
-    const unsubscribe = onSnapshot(
-      docRef,
-      async (docSnap) => {
-        if (docSnap.exists()) {
-          setSubscription({ ...(docSnap.data() as ShopSubscription), email: cleanEmail });
-          setSubLoading(false);
-        } else {
-          // Double-check collection fallback before declaring it's a new pending subscription
-          const existingSub = await findMatchingSubscription(cleanEmail);
-          if (existingSub) {
-            setSubscription(existingSub);
-            setSubLoading(false);
-          } else {
-            const todayStr = getTodayDateStr();
-            let currentShopName = cleanEmail;
-            try {
-              const storeConfigSnap = await getDoc(doc(db, 'stores', cleanEmail, 'settings', 'config'));
-              if (storeConfigSnap.exists() && storeConfigSnap.data()?.shopName) {
-                currentShopName = storeConfigSnap.data().shopName;
-              } else if (shopName && shopName !== 'BARBER PRO') {
-                currentShopName = shopName;
-              }
-            } catch (e) {
-              if (shopName && shopName !== 'BARBER PRO') currentShopName = shopName;
-            }
-
-            const newPendingSub: ShopSubscription = {
-              email: cleanEmail,
-              shopName: currentShopName,
-              status: 'pending',
-              startDate: todayStr,
-              expiryDate: todayStr,
-              notes: 'รอดำเนินการอนุมัติสิทธิ์จากผู้ดูแลระบบ',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            };
-            try {
-              await setDoc(docRef, newPendingSub);
-            } catch (e) {
-              console.warn('Error auto-creating pending subscription doc:', e);
-            }
-            setSubscription(newPendingSub);
-            setSubLoading(false);
-          }
-        }
-      },
-      (error) => {
-        console.error('Error listening to shop subscription:', error);
-        setSubLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [activeShopEmail, isMasterSuperAdmin]);
-
-  const todayDateStr = getTodayDateStr();
-  const isSubscriptionBlocked = (() => {
-    if (!activeShopEmail) return false;
-    if (isMasterSuperAdmin) return false; // Bypass completely for Master Super Admin
-    if (isCustomerBookingMode) return false; // Allow customer booking portal
-    if (subLoading) return false;
-    if (!subscription) return false;
-
-    const isExpired = subscription.expiryDate < todayDateStr || subscription.status === 'expired';
-    if (subscription.status === 'pending' || subscription.status === 'suspended' || isExpired) {
-      return true;
-    }
-    return false;
-  })();
 
   // Audio chime synthesizer for instant audio feedback on new bookings
   const playChimeSound = () => {
@@ -593,8 +404,13 @@ export default function App() {
     const [openH, openM] = (shopOpenTime || '10:00').split(':').map(Number);
     const [closeH, closeM] = (shopCloseTime || '21:00').split(':').map(Number);
     
-    const openMins = openH * 60 + openM;
-    const closeMins = closeH * 60 + closeM;
+    const safeOpenH = isNaN(openH) ? 10 : openH;
+    const safeOpenM = isNaN(openM) ? 0 : openM;
+    const safeCloseH = isNaN(closeH) ? 21 : closeH;
+    const safeCloseM = isNaN(closeM) ? 0 : closeM;
+
+    const openMins = safeOpenH * 60 + safeOpenM;
+    const closeMins = safeCloseH * 60 + safeCloseM;
 
     const isOpen = nowMins >= openMins && nowMins < closeMins;
 
@@ -1010,7 +826,14 @@ export default function App() {
 
       const list: Hairdresser[] = [];
       snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as Hairdresser);
+        const data = docSnap.data() as Hairdresser;
+        if (data) {
+          list.push({
+            ...data,
+            id: String(data.id || docSnap.id),
+            name: String(data.name || '')
+          });
+        }
       });
       const sorted = sortFahFirst(list);
       setHairdressers(sorted);
@@ -1053,7 +876,14 @@ export default function App() {
 
       const list: StaffRecorder[] = [];
       snapshot.forEach((docSnap) => {
-        list.push(docSnap.data() as StaffRecorder);
+        const data = docSnap.data() as StaffRecorder;
+        if (data) {
+          list.push({
+            ...data,
+            id: String(data.id || docSnap.id),
+            name: String(data.name || '')
+          });
+        }
       });
       setRecorders(list);
       safeLocalStorage.setItem(localKey, JSON.stringify(list));
@@ -1327,7 +1157,7 @@ export default function App() {
       } else {
         // Check individual hairdressers for stale busy status (older than 60 mins or different day)
         for (const hd of hairdressers) {
-          if (!hd.busyStart) continue;
+          if (!hd.busyStart || typeof hd.busyStart !== 'string') continue;
           
           const busyDateStr = hd.busyStart.split('T')[0];
           const elapsedMs = now.getTime() - new Date(hd.busyStart).getTime();
@@ -1951,17 +1781,7 @@ export default function App() {
     );
   }
 
-  // Access Control Guard for non-super admin users
-  if (activeShopEmail && isSubscriptionBlocked) {
-    return (
-      <AccessControlGuard
-        subscription={subscription}
-        shopEmail={activeShopEmail}
-        onLogout={handleLogout}
-        onRefresh={refetchSubscription}
-      />
-    );
-  }
+
 
   const isDisplayOnly = 
     new URLSearchParams(window.location.search).get('view') === 'display' || 
@@ -2317,37 +2137,11 @@ export default function App() {
               <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 3 ? 'text-white/85' : 'text-stone-400'}`}>(ช่างในร้าน)</span>
             </div>
           </button>
-
-          {/* Tab 7: ผู้ดูแลระบบ (Super Admin) - Visible only for Master Super Admin */}
-          {isMasterSuperAdmin && (
-            <button
-              onClick={() => setActiveTab(7)}
-              id="nav-tab-super-admin"
-              className={`flex-1 py-2.5 px-1.5 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1 cursor-pointer min-w-0 ${
-                activeTab === 7
-                  ? 'bg-amber-500 text-stone-950 font-black shadow-md ring-2 ring-amber-300'
-                  : 'text-amber-700 bg-amber-50 hover:bg-amber-100 hover:text-amber-900 border border-amber-200'
-              }`}
-            >
-              <Shield className="w-4 h-4 shrink-0" />
-              <div className="flex flex-col items-center leading-snug text-center">
-                <span className="font-extrabold text-xs tracking-tight whitespace-nowrap">ผู้ดูแลระบบ</span>
-                <span className={`text-[10px] font-normal whitespace-nowrap ${activeTab === 7 ? 'text-stone-900 font-bold' : 'text-amber-800/80'}`}>(Super Admin)</span>
-              </div>
-            </button>
-          )}
-
         </div>
       </nav>
 
       {/* Main Workspace Frame */}
       <main className="max-w-6xl mx-auto px-4 sm:px-6 animate-fade-in" id="primary-workspace">
-
-        {activeTab === 7 && isMasterSuperAdmin && (
-          <div>
-            <SuperAdminDashboard currentAdminEmail={MASTER_SUPER_ADMIN_EMAIL} />
-          </div>
-        )}
 
         {activeTab === 0 && (
           <div>

@@ -205,7 +205,7 @@ export default function Settings({
       return;
     }
 
-    if (recorders.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) {
+    if ((recorders || []).some(r => r && r.name && r.name.trim().toLowerCase() === trimmed.toLowerCase())) {
       setRecorderError(`มีชื่อผู้บันทึก "${trimmed}" ในระบบแล้ว`);
       return;
     }
@@ -484,8 +484,8 @@ export default function Settings({
     }
 
     // Check duplication
-    const exists = hairdressers.some(
-      (h) => h.name.toLowerCase() === nameTrimed.toLowerCase()
+    const exists = (hairdressers || []).some(
+      (h) => h && h.name && h.name.trim().toLowerCase() === nameTrimed.toLowerCase()
     );
     if (exists) {
       setErrorMessage(`มีช่างชื่อ "ช่าง${nameTrimed}" อยู่ในระบบแล้ว`);
@@ -1449,7 +1449,8 @@ export default function Settings({
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {services.map((srv) => {
+                    {(services || []).map((srv) => {
+                      if (!srv) return null;
                       const isEditing = editingServiceId === srv.id;
 
                       if (isEditing) {
@@ -1828,10 +1829,13 @@ export default function Settings({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="barbers-list-settings">
-                  {hairdressers.length > 0 ? (
-                    hairdressers.map((hd) => {
-                      const initial = hd.name ? hd.name.charAt(0) : '?';
-                      const charCodeSum = hd.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                  {(hairdressers || []).length > 0 ? (
+                    (hairdressers || []).map((hd) => {
+                      if (!hd) return null;
+                      const hdName = hd.name || '';
+                      const initial = hdName ? hdName.charAt(0) : '?';
+                      const hdIdStr = String(hd.id || `hd-${Math.random()}`);
+                      const charCodeSum = hdIdStr.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
                       const bgColors = [
                         'bg-amber-800 text-amber-100',
                         'bg-stone-800 text-stone-100',
@@ -1844,8 +1848,8 @@ export default function Settings({
 
                       return (
                         <div
-                          key={hd.id}
-                          id={`barber-setting-row-${hd.id}`}
+                          key={hdIdStr}
+                          id={`barber-setting-row-${hdIdStr}`}
                           className="border border-stone-200/90 bg-white rounded-2xl p-4 shadow-2xs hover:border-amber-400 transition-all flex flex-col justify-between gap-3"
                         >
                           {/* Top Info Section */}
@@ -2038,11 +2042,13 @@ export default function Settings({
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="recorders-list-settings">
-                  {recorders.length > 0 ? (
-                    recorders.map((rec) => {
+                  {(recorders || []).length > 0 ? (
+                    (recorders || []).map((rec) => {
+                      if (!rec) return null;
+                      const recIdStr = String(rec.id || `rec-${Math.random()}`);
                       return (
                         <div
-                          key={rec.id}
+                          key={recIdStr}
                           className="border border-stone-200/80 bg-stone-50/60 rounded-2xl p-3.5 flex justify-between items-center gap-3 hover:bg-white transition-all"
                         >
                           <div className="flex items-center gap-3 min-w-0">
@@ -2052,15 +2058,15 @@ export default function Settings({
                             <div className="min-w-0">
                               <h4 className="font-bold text-xs text-stone-900 truncate">{rec?.name || ''}</h4>
                               <span className="inline-block text-[10px] font-semibold text-stone-500 bg-stone-200/70 px-2 py-0.5 rounded-md mt-0.5">
-                                {rec.role || 'พนักงาน'}
+                                {rec?.role || 'พนักงาน'}
                               </span>
                             </div>
                           </div>
 
                           <button
                             type="button"
-                            id={`recorder-delete-trigger-${rec.id}`}
-                            onClick={() => setRecorderToDelete(rec.id)}
+                            id={`recorder-delete-trigger-${recIdStr}`}
+                            onClick={() => setRecorderToDelete(recIdStr)}
                             className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all cursor-pointer shrink-0"
                             title="ลบรายชื่อผู้บันทึกนี้"
                           >
@@ -2130,7 +2136,7 @@ export default function Settings({
 
       {/* Confirmation Modal for Hairdresser Deletion */}
       {(() => {
-        const selectedHairdresserForDelete = hairdressers.find(h => h.id === hairdresserToDelete);
+        const selectedHairdresserForDelete = (hairdressers || []).find(h => h && h.id === hairdresserToDelete);
         if (!selectedHairdresserForDelete) return null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in" id="delete-hairdresser-modal-overlay">
@@ -2195,7 +2201,7 @@ export default function Settings({
 
       {/* Confirmation Modal for Recorder Deletion */}
       {(() => {
-        const selectedRecorderForDelete = recorders.find(r => r.id === recorderToDelete);
+        const selectedRecorderForDelete = (recorders || []).find(r => r && r.id === recorderToDelete);
         if (!selectedRecorderForDelete) return null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-xs animate-fade-in" id="delete-recorder-modal-overlay">

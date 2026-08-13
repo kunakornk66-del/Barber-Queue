@@ -161,36 +161,54 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
   // 5. Thai Long Date Formatter (e.g., "วันอังคารที่ 28 กรกฎาคม พ.ศ. 2569")
   const getThaiFormattedDate = (dateStr: string) => {
-    const [y, m, d] = dateStr.split('-').map(Number);
-    const dateObj = new Date(y, m - 1, d);
-    const daysOfWeek = ['วันอาทิตย์ที่', 'วันจันทร์ที่', 'วันอังคารที่', 'วันพุธที่', 'วันพฤหัสบดีที่', 'วันศุกร์ที่', 'วันเสาร์ที่'];
-    const thaiMonths = [
-      'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-      'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
-    ];
-    const dayName = daysOfWeek[dateObj.getDay()];
-    const monthName = thaiMonths[dateObj.getMonth()];
-    const buddhistYear = y + 543;
-    return `${dayName} ${d} ${monthName} พ.ศ. ${buddhistYear}`;
+    if (!dateStr || typeof dateStr !== 'string') return '';
+    try {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      if (!y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) return dateStr;
+      const dateObj = new Date(y, m - 1, d);
+      const daysOfWeek = ['วันอาทิตย์ที่', 'วันจันทร์ที่', 'วันอังคารที่', 'วันพุธที่', 'วันพฤหัสบดีที่', 'วันศุกร์ที่', 'วันเสาร์ที่'];
+      const thaiMonths = [
+        'มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
+      ];
+      const dayName = daysOfWeek[dateObj.getDay()] || '';
+      const monthName = thaiMonths[dateObj.getMonth()] || '';
+      const buddhistYear = y + 543;
+      return `${dayName} ${d} ${monthName} พ.ศ. ${buddhistYear}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   // Date Navigation handlers
   const handlePrevDay = () => {
-    const [y, m, d] = selectedDate.split('-').map(Number);
-    const prev = new Date(y, m - 1, d - 1);
-    const year = prev.getFullYear();
-    const month = String(prev.getMonth() + 1).padStart(2, '0');
-    const day = String(prev.getDate()).padStart(2, '0');
-    setSelectedDate(`${year}-${month}-${day}`);
+    if (!selectedDate || typeof selectedDate !== 'string') return;
+    try {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      if (!y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) return;
+      const prev = new Date(y, m - 1, d - 1);
+      const year = prev.getFullYear();
+      const month = String(prev.getMonth() + 1).padStart(2, '0');
+      const day = String(prev.getDate()).padStart(2, '0');
+      setSelectedDate(`${year}-${month}-${day}`);
+    } catch (e) {
+      console.warn("handlePrevDay notice:", e);
+    }
   };
 
   const handleNextDay = () => {
-    const [y, m, d] = selectedDate.split('-').map(Number);
-    const next = new Date(y, m - 1, d + 1);
-    const year = next.getFullYear();
-    const month = String(next.getMonth() + 1).padStart(2, '0');
-    const day = String(next.getDate()).padStart(2, '0');
-    setSelectedDate(`${year}-${month}-${day}`);
+    if (!selectedDate || typeof selectedDate !== 'string') return;
+    try {
+      const [y, m, d] = selectedDate.split('-').map(Number);
+      if (!y || !m || !d || isNaN(y) || isNaN(m) || isNaN(d)) return;
+      const next = new Date(y, m - 1, d + 1);
+      const year = next.getFullYear();
+      const month = String(next.getMonth() + 1).padStart(2, '0');
+      const day = String(next.getDate()).padStart(2, '0');
+      setSelectedDate(`${year}-${month}-${day}`);
+    } catch (e) {
+      console.warn("handleNextDay notice:", e);
+    }
   };
 
   // 6. Calculate Waiting/Available Barbers Right Now (For Top Right Badge)

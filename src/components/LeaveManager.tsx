@@ -108,7 +108,7 @@ export default function LeaveManager({
       return;
     }
 
-    const barber = hairdressers.find(h => h.id === selectedHairdresserId);
+    const barber = (hairdressers || []).find(h => h && h.id === selectedHairdresserId);
     if (!barber) {
       setErrorMsg('ไม่พบข้อมูลช่างในระบบ');
       return;
@@ -163,7 +163,7 @@ export default function LeaveManager({
       return;
     }
 
-    const barber = hairdressers.find(h => h.id === editHairdresserId);
+    const barber = (hairdressers || []).find(h => h && h.id === editHairdresserId);
     if (!barber) {
       setErrorMsg('ไม่พบข้อมูลช่างในระบบ');
       return;
@@ -199,16 +199,22 @@ export default function LeaveManager({
 
   // Helper formatting Buddhist Calendar
   const formatThaiDate = (dateStr: string) => {
-    const parts = dateStr.split('-');
-    if (parts.length !== 3) return dateStr;
-    const year = parseInt(parts[0], 10) + 543;
-    const monthNames = [
-      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-    ];
-    const month = monthNames[parseInt(parts[1], 10) - 1];
-    const day = parseInt(parts[2], 10);
-    return `${day} ${month} ${year}`;
+    if (!dateStr || typeof dateStr !== 'string') return '';
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length !== 3) return dateStr;
+      const year = parseInt(parts[0], 10) + 543;
+      const monthNames = [
+        'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
+        'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
+      ];
+      const mIdx = parseInt(parts[1], 10) - 1;
+      const month = monthNames[mIdx] || parts[1];
+      const day = parseInt(parts[2], 10);
+      return `${day} ${month} ${year}`;
+    } catch {
+      return dateStr;
+    }
   };
 
   return (

@@ -104,11 +104,14 @@ export default function BookingForm({
     rounded.setHours(roundedHours, roundedMins, 0, 0);
 
     // Check if earlier than shopOpenTime
-    if (shopOpenTime) {
-      const [openH, openM] = shopOpenTime.split(':').map(Number);
-      const openMinutes = openH * 60 + openM;
-      if (roundedMinutes < openMinutes) {
-        rounded.setHours(openH, openM, 0, 0);
+    const openTimeSafe = shopOpenTime || '10:00';
+    if (openTimeSafe) {
+      const [openH, openM] = openTimeSafe.split(':').map(Number);
+      if (!isNaN(openH) && !isNaN(openM)) {
+        const openMinutes = openH * 60 + openM;
+        if (roundedMinutes < openMinutes) {
+          rounded.setHours(openH, openM, 0, 0);
+        }
       }
     }
     return rounded;
@@ -217,11 +220,12 @@ export default function BookingForm({
 
   // State fields
   const [date, setDate] = useState(getTodayDateString());
-  const [startTime, setStartTime] = useState(shopOpenTime);
+  const [startTime, setStartTime] = useState(shopOpenTime || '10:00');
   const [endTime, setEndTime] = useState(() => {
-    const [h, m] = shopOpenTime.split(':').map(Number);
-    let eh = h;
-    let em = m + slotDuration;
+    const safeOpen = shopOpenTime || '10:00';
+    const [h, m] = safeOpen.split(':').map(Number);
+    let eh = isNaN(h) ? 10 : h;
+    let em = (isNaN(m) ? 0 : m) + (slotDuration || 30);
     if (em >= 60) {
       eh += Math.floor(em / 60);
       em = em % 60;
@@ -231,17 +235,16 @@ export default function BookingForm({
 
   // Keep startTime and endTime in sync when shopOpenTime or slotDuration changes
   useEffect(() => {
-    if (shopOpenTime) {
-      setStartTime(shopOpenTime);
-      const [h, m] = shopOpenTime.split(':').map(Number);
-      let eh = h;
-      let em = m + slotDuration;
-      if (em >= 60) {
-        eh += Math.floor(em / 60);
-        em = em % 60;
-      }
-      setEndTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
+    const safeOpen = shopOpenTime || '10:00';
+    setStartTime(safeOpen);
+    const [h, m] = safeOpen.split(':').map(Number);
+    let eh = isNaN(h) ? 10 : h;
+    let em = (isNaN(m) ? 0 : m) + (slotDuration || 30);
+    if (em >= 60) {
+      eh += Math.floor(em / 60);
+      em = em % 60;
     }
+    setEndTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
   }, [shopOpenTime, slotDuration]);
   
   // selectedHairdresserId: always selects a specific hairdresser
@@ -383,10 +386,12 @@ export default function BookingForm({
 
   // Generate ALL_SLOTS dynamically with fixed 30-minute resolution for the shop queue grid
   const ALL_SLOTS: string[] = [];
-  const [openH, openM] = shopOpenTime.split(':').map(Number);
-  const [closeH, closeM] = shopCloseTime.split(':').map(Number);
-  const startMinutes = openH * 60 + openM;
-  const endMinutesLimit = closeH * 60 + closeM;
+  const safeOpenStr = shopOpenTime || '10:00';
+  const safeCloseStr = shopCloseTime || '21:00';
+  const [openH, openM] = safeOpenStr.split(':').map(Number);
+  const [closeH, closeM] = safeCloseStr.split(':').map(Number);
+  const startMinutes = (isNaN(openH) ? 10 : openH) * 60 + (isNaN(openM) ? 0 : openM);
+  const endMinutesLimit = (isNaN(closeH) ? 21 : closeH) * 60 + (isNaN(closeM) ? 0 : closeM);
   let currentMinutes = startMinutes;
   while (currentMinutes < endMinutesLimit) {
     const hh = String(Math.floor(currentMinutes / 60)).padStart(2, '0');
@@ -396,9 +401,10 @@ export default function BookingForm({
   }
 
   const getEndTimeOfSlot = (startTimeStr: string) => {
+    if (!startTimeStr) return '10:30';
     const [h, m] = startTimeStr.split(':').map(Number);
-    let eh = h;
-    let em = m + 30; // Always 30-minute intervals for grid slots regardless of booking duration
+    let eh = isNaN(h) ? 10 : h;
+    let em = (isNaN(m) ? 0 : m) + 30;
     if (em >= 60) {
       const extraHours = Math.floor(em / 60);
       eh += extraHours;

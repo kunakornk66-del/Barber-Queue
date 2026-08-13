@@ -195,14 +195,20 @@ export default function CustomerSelfBookingView({
     const [openH, openM] = (shopOpenTime || '10:00').split(':').map(Number);
     const [closeH, closeM] = (shopCloseTime || '21:00').split(':').map(Number);
 
-    let currentMins = openH * 60 + openM;
-    const endMins = closeH * 60 + closeM;
+    const safeOpenH = isNaN(openH) ? 10 : openH;
+    const safeOpenM = isNaN(openM) ? 0 : openM;
+    const safeCloseH = isNaN(closeH) ? 21 : closeH;
+    const safeCloseM = isNaN(closeM) ? 0 : closeM;
+
+    let currentMins = safeOpenH * 60 + safeOpenM;
+    const endMins = safeCloseH * 60 + safeCloseM;
+    const step = slotDuration || 30;
 
     while (currentMins < endMins) {
       const h = Math.floor(currentMins / 60);
       const m = currentMins % 60;
       slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
-      currentMins += slotDuration;
+      currentMins += step;
     }
     return slots;
   };
@@ -211,8 +217,11 @@ export default function CustomerSelfBookingView({
 
   // Helper to convert HH:MM to total minutes
   const timeToMinutes = (timeStr: string) => {
+    if (!timeStr) return 0;
     const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
+    const safeH = isNaN(h) ? 0 : h;
+    const safeM = isNaN(m) ? 0 : m;
+    return safeH * 60 + safeM;
   };
 
   // Helper to format minutes to HH:MM
