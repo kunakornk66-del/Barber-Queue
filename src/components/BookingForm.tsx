@@ -6,7 +6,7 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { Hairdresser, Booking, LeaveRecord, StaffRecorder } from '../types';
 import { Calendar, Clock, User, Phone, FileText, ChevronRight, CheckCircle2, UserCheck, AlertCircle, AlertTriangle, X, Filter, Plus, RefreshCw, Users, HelpCircle } from 'lucide-react';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import { triggerMascotPopup } from './MascotAssistant';
 
@@ -170,22 +170,66 @@ export default function BookingForm({
     if (!activeShopEmail) return;
     try {
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
+      const walkinRef = doc(db, 'stores', activeShopEmail, 'bookings', `walkin_${hairdresserId}`);
+
       if (setBusy) {
         const now = new Date();
         const busyStart = now.toISOString(); // Actual press timestamp e.g. 12:39
         const busyUntil = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+
+        const hdObj = (hairdressers || []).find(h => h && h.id === hairdresserId);
+        const hdName = hdObj ? hdObj.name : '';
+
+        // 1. Update hairdresser status
         await updateDoc(hairdresserRef, {
           busyStart,
           busyUntil,
           breakStart: null,
           breakUntil: null
         });
+
+        // 2. Create Walk-In booking in Firestore so it appears in "แถบตารางคิว" (BookingList / Queue)
+        const todayStr = getTodayDateString();
+        const startHH = String(now.getHours()).padStart(2, '0');
+        const startMM = String(now.getMinutes()).padStart(2, '0');
+        const startTime = `${startHH}:${startMM}`;
+
+        const untilDate = new Date(now.getTime() + 60 * 60 * 1000);
+        const endHH = String(untilDate.getHours()).padStart(2, '0');
+        const endMM = String(untilDate.getMinutes()).padStart(2, '0');
+        const endTime = `${endHH}:${endMM}`;
+
+        await setDoc(walkinRef, {
+          id: `walkin_${hairdresserId}`,
+          customerName: 'ลูกค้าหน้าร้าน (Walk-in)',
+          customerPhone: '-',
+          hairdresserId: hairdresserId,
+          date: todayStr,
+          startTime: startTime,
+          endTime: endTime,
+          status: 'in-progress',
+          remarks: `ตัดผม Walk-in หน้าร้าน (ช่าง${hdName})`,
+          recordedBy: activeRecorder || 'ระบบ',
+          createdAt: now.toISOString(),
+          isWalkInBusy: true
+        }, { merge: true });
+
+        triggerMascotPopup(`เริ่มคิวตัดผม Walk-in ของช่าง${hdName} เรียบร้อยแล้วงับ! ✂️`, 'เริ่มตัดผม Walk-in', 'cheering');
       } else {
         // Clear busy status
         await updateDoc(hairdresserRef, {
           busyStart: null,
           busyUntil: null
         });
+
+        // Delete Walk-In booking from Firestore so it disappears from "แถบตารางคิว" (BookingList / Queue)
+        await deleteDoc(walkinRef).catch((err) => {
+          console.warn("Could not delete walkin booking:", err);
+        });
+
+        const hdObj = (hairdressers || []).find(h => h && h.id === hairdresserId);
+        const hdName = hdObj ? hdObj.name : '';
+        triggerMascotPopup(`ช่าง${hdName} ตัดผมเสร็จเรียบร้อยแล้ว ว่างพร้อมรับคิวถัดไปแล้วงับ! ✨`, 'ตัดผมเสร็จแล้ว', 'happy');
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `stores/${activeShopEmail}/hairdressers/${hairdresserId}`, false);
@@ -196,6 +240,8 @@ export default function BookingForm({
     if (!activeShopEmail) return;
     try {
       const hairdresserRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hairdresserId);
+      const walkinRef = doc(db, 'stores', activeShopEmail, 'bookings', `walkin_${hairdresserId}`);
+
       if (setBreak) {
         const now = new Date();
         const breakStart = now.toISOString(); // Actual press timestamp e.g. 12:39
@@ -206,6 +252,9 @@ export default function BookingForm({
           busyStart: null,
           busyUntil: null
         });
+
+        // Clear any walkin booking if switching to break
+        await deleteDoc(walkinRef).catch(() => {});
       } else {
         // Clear break status
         await updateDoc(hairdresserRef, {

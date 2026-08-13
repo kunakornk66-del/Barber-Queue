@@ -1173,6 +1173,7 @@ export default function App() {
                 busyStart: null,
                 busyUntil: null
               });
+              await deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', `walkin_${hd.id}`)).catch(() => {});
             } catch (e) {
               console.error(`Error resetting busy state for hairdresser ${hd.id}:`, e);
             }
@@ -1197,6 +1198,7 @@ export default function App() {
                 busyStart: null,
                 busyUntil: null
               });
+              await deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', `walkin_${hd.id}`)).catch(() => {});
             } catch (e) {
               console.error(`Error resetting busy state for hairdresser ${hd.id}:`, e);
             }
@@ -1362,6 +1364,16 @@ export default function App() {
       return;
     }
 
+    if (id.startsWith('walkin_')) {
+      const hdId = id.replace('walkin_', '');
+      try {
+        const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hdId);
+        await updateDoc(hdRef, { busyStart: null, busyUntil: null });
+      } catch (e) {
+        console.warn("Could not clear hairdresser busy status on walkin delete:", e);
+      }
+    }
+
     // Optimistic Update & Local Backup
     setBookings(prev => {
       const updated = prev.filter(b => b.id !== id);
@@ -1380,6 +1392,25 @@ export default function App() {
     if (!activeShopEmail) return;
     if (!isManager) {
       alert("⚠️ สิทธิ์ปฏิเสธ: คุณไม่มีสิทธิ์จัดการข้อมูลหรือแก้ไขการจองของสาขานี้");
+      return;
+    }
+
+    // If walk-in booking is completed or cancelled, delete it and free the hairdresser so it disappears from queue
+    if (id.startsWith('walkin_') && (updatedData.status === 'completed' || updatedData.status === 'cancelled')) {
+      const hdId = id.replace('walkin_', '');
+      try {
+        const hdRef = doc(db, 'stores', activeShopEmail, 'hairdressers', hdId);
+        await updateDoc(hdRef, { busyStart: null, busyUntil: null });
+        await deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', id));
+      } catch (e) {
+        console.warn("Error completing walkin booking:", e);
+      }
+
+      setBookings(prev => {
+        const updated = prev.filter(b => b.id !== id);
+        safeLocalStorage.setItem(`backup_bookings_${activeShopEmail}`, JSON.stringify(updated));
+        return updated;
+      });
       return;
     }
 
