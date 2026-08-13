@@ -575,6 +575,17 @@ export default function App() {
     };
   }, [activeShopEmail, syncRetryKey]);
 
+  // Helper to sort hairdressers with Fah (ฟ้า) first
+  const sortFahFirst = (list: Hairdresser[]) => {
+    return [...(list || [])].filter(Boolean).sort((a, b) => {
+      const isAFah = (a?.name || '').toLowerCase().includes('ฟ้า');
+      const isBFah = (b?.name || '').toLowerCase().includes('ฟ้า');
+      if (isAFah && !isBFah) return -1;
+      if (!isAFah && isBFah) return 1;
+      return 0;
+    });
+  };
+
   // Firestore listener for Shop Services
   useEffect(() => {
     if (!activeShopEmail) return;
@@ -668,7 +679,7 @@ export default function App() {
 
     // Optimistic update
     setServices(prev => {
-      const updated = [...prev, newService];
+      const updated = [...(prev || []).filter(Boolean), newService];
       safeLocalStorage.setItem(`backup_services_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
@@ -787,17 +798,6 @@ export default function App() {
   useEffect(() => {
     if (!activeShopEmail) return;
 
-    // Helper to sort hairdressers with Fah (ฟ้า) first
-    const sortFahFirst = (list: Hairdresser[]) => {
-      return [...list].sort((a, b) => {
-        const isAFah = (a.name || '').toLowerCase().includes('ฟ้า');
-        const isBFah = (b.name || '').toLowerCase().includes('ฟ้า');
-        if (isAFah && !isBFah) return -1;
-        if (!isAFah && isBFah) return 1;
-        return 0;
-      });
-    };
-
     // Load local fallback first
     const localKey = `backup_hairdressers_${activeShopEmail}`;
     const savedLocal = safeLocalStorage.getItem(localKey);
@@ -906,7 +906,7 @@ export default function App() {
 
     // Optimistic update
     setRecorders(prev => {
-      const updated = [...prev, newRec];
+      const updated = [...(prev || []).filter(Boolean), newRec];
       safeLocalStorage.setItem(`backup_recorders_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });
@@ -938,9 +938,9 @@ export default function App() {
   // Keep activeRecorder synchronized with first available option when lists change
   useEffect(() => {
     const allOptions = [
-      ...recorders.map(r => r.name),
-      ...hairdressers.map(h => h.name)
-    ];
+      ...(recorders || []).filter(Boolean).map(r => r?.name || ''),
+      ...(hairdressers || []).filter(Boolean).map(h => h?.name || '')
+    ].filter(Boolean);
 
     if (allOptions.length > 0) {
       const exists = allOptions.includes(activeRecorder);
@@ -1002,14 +1002,27 @@ export default function App() {
 
       const firestoreBookingsMap = new Map<string, Booking>();
       snapshot.forEach((docSnap) => {
-        const b = docSnap.data() as Booking;
-        if (isPastDay(b.date, todayStr)) {
-          // Auto clear past day booking from Firestore to save space
-          deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', docSnap.id)).catch(err => {
-            console.warn("Auto cleanup past booking error:", err);
-          });
-        } else {
-          firestoreBookingsMap.set(docSnap.id, b);
+        const data = docSnap.data() as Booking;
+        if (data) {
+          const b: Booking = {
+            ...data,
+            id: String(data.id || docSnap.id),
+            date: String(data.date || todayStr),
+            startTime: String(data.startTime || '10:00'),
+            endTime: String(data.endTime || '10:30'),
+            customerName: String(data.customerName || 'ลูกค้า'),
+            customerPhone: String(data.customerPhone || '-'),
+            hairdresserId: data.hairdresserId ? String(data.hairdresserId) : null,
+            status: data.status || 'waiting'
+          };
+          if (isPastDay(b.date, todayStr)) {
+            // Auto clear past day booking from Firestore to save space
+            deleteDoc(doc(db, 'stores', activeShopEmail, 'bookings', docSnap.id)).catch(err => {
+              console.warn("Auto cleanup past booking error:", err);
+            });
+          } else {
+            firestoreBookingsMap.set(b.id, b);
+          }
         }
       });
 
@@ -1078,14 +1091,26 @@ export default function App() {
       const firestoreLeavesMap = new Map<string, LeaveRecord>();
 
       snapshot.forEach((docSnap) => {
-        const l = docSnap.data() as LeaveRecord;
-        if (isPastDay(l.date, todayStr)) {
-          // Auto clear past day leave record from Firestore
-          deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', docSnap.id)).catch(err => {
-            console.warn("Auto cleanup past leave record error:", err);
-          });
-        } else {
-          firestoreLeavesMap.set(docSnap.id, l);
+        const data = docSnap.data() as LeaveRecord;
+        if (data) {
+          const l: LeaveRecord = {
+            ...data,
+            id: String(data.id || docSnap.id),
+            date: String(data.date || todayStr),
+            startTime: String(data.startTime || '10:00'),
+            endTime: String(data.endTime || '12:00'),
+            hairdresserId: String(data.hairdresserId || ''),
+            details: String(data.details || ''),
+            recorder: String((data as unknown as { recorder?: string; recordedBy?: string }).recorder || (data as unknown as { recordedBy?: string }).recordedBy || 'ระบบ')
+          };
+          if (isPastDay(l.date, todayStr)) {
+            // Auto clear past day leave record from Firestore
+            deleteDoc(doc(db, 'stores', activeShopEmail, 'leaves', docSnap.id)).catch(err => {
+              console.warn("Auto cleanup past leave record error:", err);
+            });
+          } else {
+            firestoreLeavesMap.set(l.id, l);
+          }
         }
       });
 
@@ -1386,7 +1411,7 @@ export default function App() {
 
     // Optimistic Update & Local Backup
     setHairdressers(prev => {
-      const updated = [...prev, newBarber];
+      const updated = sortFahFirst([...(prev || []).filter(Boolean), newBarber]);
       safeLocalStorage.setItem(`backup_hairdressers_${activeShopEmail}`, JSON.stringify(updated));
       return updated;
     });

@@ -1170,7 +1170,7 @@ export default function Settings({
                     type="button"
                     onClick={handleClearHolidays}
                     className={`px-4 py-2.5 rounded-2xl text-xs font-bold transition-all border cursor-pointer ${
-                      shopHolidays.length === 0
+                      (shopHolidays || []).length === 0
                         ? 'bg-brand text-white border-brand shadow-sm'
                         : 'bg-stone-50 hover:bg-stone-100 text-stone-700 border-stone-200'
                     }`}
@@ -1441,9 +1441,9 @@ export default function Settings({
 
               {/* List of Existing Services */}
               <div className="space-y-2">
-                <span className="text-xs font-bold text-stone-800">รายการบริการที่มีในระบบ ({services.length} รายการ):</span>
+                <span className="text-xs font-bold text-stone-800">รายการบริการที่มีในระบบ ({(services || []).length} รายการ):</span>
                 
-                {services.length === 0 ? (
+                {(services || []).length === 0 ? (
                   <div className="p-4 bg-stone-50 rounded-2xl border border-stone-200 text-center text-xs text-stone-500">
                     ยังไม่มีการเพิ่มรายการบริการ กรุณากรอกเพิ่มด้านบน
                   </div>
@@ -1821,7 +1821,7 @@ export default function Settings({
               <div className="space-y-4 pt-4 border-t border-stone-100">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                    👤 รายชื่อช่างทำผมปัจจุบัน ({hairdressers.length} ท่าน)
+                    👤 รายชื่อช่างทำผมปัจจุบัน ({(hairdressers || []).length} ท่าน)
                   </h3>
                   <span className="text-[10px] text-stone-500 bg-stone-100 px-2 py-0.5 rounded-md font-medium">
                     รายชื่อคิวจะอิงตามข้อมูลตรงนี้
@@ -2038,7 +2038,7 @@ export default function Settings({
               {/* Current Recorders List */}
               <div className="space-y-3 pt-4 border-t border-stone-100">
                 <h3 className="text-xs font-bold text-stone-800 uppercase tracking-wider">
-                  📋 รายชื่อผู้บันทึกหน้าร้านปัจจุบัน ({recorders.length} ท่าน)
+                  📋 รายชื่อผู้บันทึกหน้าร้านปัจจุบัน ({(recorders || []).length} ท่าน)
                 </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" id="recorders-list-settings">

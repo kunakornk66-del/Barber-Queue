@@ -249,7 +249,7 @@ export default function BookingForm({
   
   // selectedHairdresserId: always selects a specific hairdresser
   const [selectedHairdresserId, setSelectedHairdresserId] = useState<string | null>(() => {
-    return hairdressers.length > 0 ? hairdressers[0].id : null;
+    return (hairdressers || []).length > 0 && hairdressers[0] ? hairdressers[0].id : null;
   });
 
   // Checkbox state for "ลูกค้าไม่ระบุช่าง (ช่างคนไหนก็ได้ / พร้อมสลับช่าง)"
@@ -257,7 +257,7 @@ export default function BookingForm({
 
   // Auto-select first hairdresser if state is empty
   useEffect(() => {
-    if (!selectedHairdresserId && hairdressers.length > 0) {
+    if (!selectedHairdresserId && (hairdressers || []).length > 0 && hairdressers[0]) {
       setSelectedHairdresserId(hairdressers[0].id);
     }
   }, [hairdressers, selectedHairdresserId]);
@@ -269,24 +269,27 @@ export default function BookingForm({
     targetEnd: string,
     excludeBarberId?: string
   ): Hairdresser | null => {
-    const available = hairdressers.filter(hd => {
+    const available = (hairdressers || []).filter(hd => {
+      if (!hd) return false;
       if (excludeBarberId && hd.id === excludeBarberId) return false;
       if (hd.onLeave) return false;
 
       // Leave check
-      const hasLeave = leaves && leaves.some(l => 
+      const hasLeave = (leaves || []).some(l => 
+        l &&
         l.hairdresserId === hd.id &&
         l.date === targetDate &&
-        targetStart < l.endTime && l.startTime < targetEnd
+        targetStart < (l.endTime || '') && (l.startTime || '') < targetEnd
       );
       if (hasLeave) return false;
 
       // Booking check
-      const hasBooking = bookings && bookings.some(b => 
+      const hasBooking = (bookings || []).some(b => 
+        b &&
         b.status !== 'cancelled' &&
         b.hairdresserId === hd.id &&
         b.date === targetDate &&
-        targetStart < b.endTime && b.startTime < targetEnd
+        targetStart < (b.endTime || '') && (b.startTime || '') < targetEnd
       );
       if (hasBooking) return false;
 

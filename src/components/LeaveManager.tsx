@@ -37,8 +37,8 @@ interface LeaveManagerProps {
 }
 
 export default function LeaveManager({
-  hairdressers,
-  leaves,
+  hairdressers = [],
+  leaves = [],
   onAddLeave,
   onUpdateLeave,
   onDeleteLeave,

@@ -141,9 +141,9 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
   // 4. Sort Hairdressers so Fah (ฟ้า) is always at the top (first row)
   const sortedHairdressers = useMemo(() => {
-    return [...hairdressers].sort((a, b) => {
-      const isAFah = (a.name || '').toLowerCase().includes('ฟ้า');
-      const isBFah = (b.name || '').toLowerCase().includes('ฟ้า');
+    return [...(hairdressers || [])].filter(Boolean).sort((a, b) => {
+      const isAFah = (a?.name || '').toLowerCase().includes('ฟ้า');
+      const isBFah = (b?.name || '').toLowerCase().includes('ฟ้า');
       if (isAFah && !isBFah) return -1;
       if (!isAFah && isBFah) return 1;
       return 0;
@@ -152,11 +152,11 @@ export const TimetableGrid: React.FC<TimetableGridProps> = ({
 
   // Filter Bookings and Leaves for the Selected Date
   const dayBookings = useMemo(() => {
-    return bookings.filter(b => b.date === selectedDate && b.status !== 'cancelled');
+    return (bookings || []).filter(b => b && b.date === selectedDate && b.status !== 'cancelled');
   }, [bookings, selectedDate]);
 
   const dayLeaves = useMemo(() => {
-    return leaves.filter(l => l.date === selectedDate);
+    return (leaves || []).filter(l => l && l.date === selectedDate);
   }, [leaves, selectedDate]);
 
   // 5. Thai Long Date Formatter (e.g., "วันอังคารที่ 28 กรกฎาคม พ.ศ. 2569")

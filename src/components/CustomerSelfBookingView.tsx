@@ -253,7 +253,7 @@ export default function CustomerSelfBookingView({
     if (endMins > shopCloseMins) return false;
 
     // Check Barber Leave Records for the selected date
-    const barberLeaves = leaves.filter(l => l.hairdresserId === barberId && l.date === selectedDate);
+    const barberLeaves = (leaves || []).filter(l => l && l.hairdresserId === barberId && l.date === selectedDate);
     for (const leave of barberLeaves) {
       const lStart = timeToMinutes(leave.startTime);
       const lEnd = timeToMinutes(leave.endTime);
@@ -264,8 +264,8 @@ export default function CustomerSelfBookingView({
     }
 
     // Check Barber Bookings for the selected date (excluding cancelled)
-    const barberBookings = bookings.filter(
-      b => b.hairdresserId === barberId && b.date === selectedDate && b.status !== 'cancelled'
+    const barberBookings = (bookings || []).filter(
+      b => b && b.hairdresserId === barberId && b.date === selectedDate && b.status !== 'cancelled'
     );
     for (const bk of barberBookings) {
       const bStart = timeToMinutes(bk.startTime);

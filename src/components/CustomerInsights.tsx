@@ -19,7 +19,7 @@ interface ChatMessage {
   text: string;
 }
 
-export default function CustomerInsights({ bookings, hairdressers }: CustomerInsightsProps) {
+export default function CustomerInsights({ bookings = [], hairdressers = [] }: CustomerInsightsProps) {
   const [selectedCustomerKey, setSelectedCustomerKey] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [insights, setInsights] = useState<{ [key: string]: AIInsightResult }>({});
@@ -33,16 +33,17 @@ export default function CustomerInsights({ bookings, hairdressers }: CustomerIns
   // Helper to find hairdresser name
   const getHairdresserName = (id: string | null) => {
     if (id === null) return 'ไม่ระบุช่าง (ใครก็ได้)';
-    const found = hairdressers.find(h => h.id === id);
-    return found ? `ช่าง${found.name}` : 'ช่างนิรนาม';
+    const found = (hairdressers || []).find(h => h && h.id === id);
+    return found && found.name ? `ช่าง${found.name}` : 'ช่างนิรนาม';
   };
 
   // Group bookings by unique customer key (Name + Phone)
   const customerMap = new Map<string, { name: string; phone: string; bookings: Booking[] }>();
 
-  bookings.forEach(booking => {
-    const name = booking.customerName.trim();
-    const phone = booking.customerPhone.trim() || '-';
+  (bookings || []).forEach(booking => {
+    if (!booking) return;
+    const name = (booking.customerName || 'ลูกค้า').trim();
+    const phone = (booking.customerPhone || '-').trim() || '-';
     const key = `${name} (${phone})`;
 
     if (!customerMap.has(key)) {

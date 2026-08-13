@@ -148,6 +148,9 @@ export default function BookingList({
 
   // Helper to check if a booking is within the next 60 minutes or active
   const getUpcoming60MinAlert = (booking: Booking) => {
+    if (!booking || !booking.date || typeof booking.date !== 'string' || !booking.startTime || typeof booking.startTime !== 'string') {
+      return null;
+    }
     const effStatus = getEffectiveStatus(booking, now);
     if (effStatus === 'completed' || effStatus === 'cancelled') return null;
     
@@ -851,7 +854,7 @@ export default function BookingList({
             </div>
           </div>
           <div className="flex flex-wrap gap-1.5">
-            {hairdressers.filter(h => h.busyUntil && h.busyStart && new Date(h.busyUntil) > new Date()).map(hd => {
+            {(hairdressers || []).filter(h => h && h.busyUntil && h.busyStart && new Date(h.busyUntil) > new Date()).map(hd => {
               const d = new Date(hd.busyStart!);
               const hh = String(d.getHours()).padStart(2, '0');
               const mm = String(d.getMinutes()).padStart(2, '0');
@@ -861,7 +864,7 @@ export default function BookingList({
                 </span>
               );
             })}
-            {hairdressers.filter(h => h.breakUntil && h.breakStart && new Date(h.breakUntil) > new Date()).map(hd => {
+            {(hairdressers || []).filter(h => h && h.breakUntil && h.breakStart && new Date(h.breakUntil) > new Date()).map(hd => {
               const d = new Date(hd.breakStart!);
               const hh = String(d.getHours()).padStart(2, '0');
               const mm = String(d.getMinutes()).padStart(2, '0');
@@ -877,7 +880,7 @@ export default function BookingList({
 
       {/* Top Banner for Appointments starting within the next 60 minutes */}
       {(() => {
-        const upcomingAlerts = bookings.filter(b => getUpcoming60MinAlert(b) !== null);
+        const upcomingAlerts = (bookings || []).filter(b => b && getUpcoming60MinAlert(b) !== null);
         if (upcomingAlerts.length === 0) return null;
         return (
           <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white rounded-3xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md border border-amber-400 animate-fade-in" id="upcoming-60min-alert-banner">
